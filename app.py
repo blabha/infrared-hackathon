@@ -39,8 +39,10 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 class EventUpdate(BaseModel):
-    title: str | None = None
-    time:  str | None = None
+    title:    str | None = None
+    time:     str | None = None
+    location: str | None = None
+    notes:    str | None = None
 
 
 class UserProfile(BaseModel):
@@ -260,11 +262,23 @@ def update_event(idx: int, body: EventUpdate, user_id: str = ""):
     events = _read_plan(user_id=user_id)
     if idx >= len(events):
         raise HTTPException(status_code=404, detail="Event not found")
+    location_changed = False
     if body.title is not None:
         events[idx]["title"] = body.title
     if body.time is not None:
         events[idx]["time"] = body.time
+    if body.location is not None:
+        if body.location != events[idx].get("location", ""):
+            location_changed = True
+            events[idx].pop("lat", None)
+            events[idx].pop("lon", None)
+            events[idx]["climate"] = None
+        events[idx]["location"] = body.location
+    if body.notes is not None:
+        events[idx]["notes"] = body.notes
     _write_plan(events, user_id=user_id)
+    if location_changed:
+        threading.Thread(target=_enrich_event_async, args=(idx, user_id), daemon=True).start()
     return JSONResponse(events[idx])
 
 
@@ -460,9 +474,9 @@ class EnrichRequest(BaseModel):
     indices: list[int]
 
 @app.post("/api/enrich")
-def enrich_specific(body: EnrichRequest):
+def enrich_specific(body: EnrichRequest, user_id: str = ""):
     """Enrich specific event indices."""
-    events = _read_plan()
+    events = _read_plan(user_id=user_id)
     valid = [i for i in body.indices if i < len(events)]
     if not valid:
         return JSONResponse({"status": "no valid indices"})
@@ -471,17 +485,17 @@ def enrich_specific(body: EnrichRequest):
             from modules.infrared_client import get_climate_for_events
             from modules.weather_client import get_weather_for_events
             from modules.claude_planner import get_weekly_suggestions
-            evts = _read_plan()
+            evts = _read_plan(user_id=user_id)
             to_enrich = [evts[i] for i in valid]
             enriched = get_climate_for_events(to_enrich)
             enriched = get_weather_for_events(enriched)
             for pos, i in enumerate(valid):
                 evts[i] = enriched[pos]
-            _write_plan(evts)
+            _write_plan(evts, user_id=user_id)
             final = get_weekly_suggestions(evts)
             if final:
-                _write_plan(final)
-            print(f"[enrich] Done — indices {valid}")
+                _write_plan(final, user_id=user_id)
+            print(f"[enrich] Done — indices {valid} for user {user_id or 'global'}")
         except Exception:
             traceback.print_exc()
     threading.Thread(target=_run, daemon=True).start()

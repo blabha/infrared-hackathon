@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
   TextInput, Alert, ScrollView, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import MapView, { Marker, Callout, Overlay } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -110,6 +111,9 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(true);
   const [editTitle, setEditTitle] = useState('');
   const [editTime, setEditTime] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newTime, setNewTime] = useState('');
   const [newLocation, setNewLocation] = useState('');
@@ -152,6 +156,7 @@ export default function MapScreen() {
   useEffect(() => { loadEvents(); }, []);
 
   const geocodeFallback = async (evts: EventItem[], already: Record<number, Coord>) => {
+    const needsEnrich: number[] = [];
     for (let i = 0; i < evts.length; i++) {
       if (already[i]) continue;
       const loc = evts[i].location;
@@ -161,9 +166,18 @@ export default function MapScreen() {
         const d = await res.json();
         if (d.lat != null && d.lng != null) {
           setCoords(prev => ({ ...prev, [i]: { latitude: d.lat, longitude: d.lng } }));
+          needsEnrich.push(i);
         }
       } catch {}
       await new Promise(r => setTimeout(r, 1100));
+    }
+    // Trigger UTCI enrichment for events whose address just resolved
+    if (needsEnrich.length > 0) {
+      fetch(`${API_BASE}/api/enrich${user_id ? `?user_id=${user_id}` : ''}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indices: needsEnrich }),
+      }).catch(() => {});
     }
   };
 
@@ -181,22 +195,32 @@ export default function MapScreen() {
     setTimeout(() => {
       setEditTitle(ev.title ?? '');
       setEditTime(ev.time ?? '');
+      setEditLocation(ev.location ?? '');
+      setEditNotes(ev.notes ?? '');
       setSelected({ ev, idx });
     }, 50);
   };
 
   const saveEdit = async () => {
     if (!selected) return;
+    setEditSaving(true);
     try {
       await fetch(`${API_BASE}/api/events/${selected.idx}${user_id ? `?user_id=${user_id}` : ''}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: editTitle, time: editTime }),
+        body: JSON.stringify({
+          title:    editTitle,
+          time:     editTime,
+          location: editLocation || null,
+          notes:    editNotes || null,
+        }),
       });
       setSelected(null);
       loadEvents();
     } catch {
       Alert.alert('Error', 'Could not update event.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -314,35 +338,69 @@ export default function MapScreen() {
 
       {/* Edit modal */}
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.overlay}
+        >
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Edit Event</Text>
-            <Text style={styles.fieldLabel}>Title</Text>
-            <TextInput
-              style={styles.input}
-              value={editTitle}
-              onChangeText={setEditTitle}
-              placeholder="Event title"
-              placeholderTextColor="#94a3b8"
-            />
-            <Text style={styles.fieldLabel}>Time (ISO)</Text>
-            <TextInput
-              style={styles.input}
-              value={editTime}
-              onChangeText={setEditTime}
-              placeholder="2025-06-02T09:00:00"
-              placeholderTextColor="#94a3b8"
-            />
-            <View style={styles.row}>
-              <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={() => setSelected(null)}>
-                <Text style={styles.btnSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveEdit}>
-                <Text style={styles.btnPrimaryText}>Save</Text>
-              </TouchableOpacity>
-            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.fieldLabel}>Title</Text>
+              <TextInput
+                style={styles.input}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Event title"
+                placeholderTextColor="#94a3b8"
+              />
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Date & Time</Text>
+              <TextInput
+                style={styles.input}
+                value={editTime}
+                onChangeText={setEditTime}
+                placeholder="2025-06-12T09:00:00"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="none"
+              />
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Location</Text>
+              <TextInput
+                style={styles.input}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="Barceloneta Beach, Barcelona"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="words"
+              />
+              <Text style={styles.fieldHint}>Changing the address recalculates climate data</Text>
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Notes</Text>
+              <TextInput
+                style={[styles.input, styles.inputMultiline]}
+                value={editNotes}
+                onChangeText={setEditNotes}
+                placeholder="Any extra notes about this event…"
+                placeholderTextColor="#94a3b8"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+
+              <View style={[styles.row, { marginTop: 16 }]}>
+                <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={() => setSelected(null)}>
+                  <Text style={styles.btnSecondaryText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveEdit} disabled={editSaving}>
+                  {editSaving
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.btnPrimaryText}>Save</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Add modal */}
@@ -426,10 +484,12 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 },
   fieldLabel: { fontSize: 11, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldHint: { fontSize: 11, color: '#94a3b8', marginTop: 4, marginBottom: 2 },
   input: {
     backgroundColor: '#fafafa', borderRadius: 10, borderWidth: 1,
     borderColor: '#e8e8e8', padding: 12, fontSize: 14, color: '#111827',
   },
+  inputMultiline: { minHeight: 72, paddingTop: 12 },
   row: { flexDirection: 'row', gap: 12, marginTop: 4 },
   btn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
   btnPrimary: { backgroundColor: '#0ea5e9' },
