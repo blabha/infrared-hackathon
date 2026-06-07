@@ -80,36 +80,54 @@ def _upcoming_week() -> tuple[datetime, datetime]:
 
 
 def get_weekly_events() -> list[dict]:
-    """Fetch calendar events for the upcoming Sunday–Saturday week."""
+    """Fetch events for the upcoming Mon–Sun week from ALL calendars."""
     creds = _get_credentials()
     service = build("calendar", "v3", credentials=creds)
 
-    start, end = _upcoming_week()
+    week_start, week_end = _upcoming_week()
 
-    result = service.events().list(
-        calendarId="primary",
-        timeMin=start.isoformat(),
-        timeMax=end.isoformat(),
-        singleEvents=True,
-        orderBy="startTime",
-    ).execute()
+    # Collect all calendar IDs the user has access to
+    cal_list = service.calendarList().list().execute()
+    calendar_ids = [cal["id"] for cal in cal_list.get("items", [])]
+    if not calendar_ids:
+        calendar_ids = ["primary"]
 
-    events = []
-    for item in result.get("items", []):
-        title = item.get("summary", "Untitled")
-        start = item.get("start", {})
-        time = start.get("dateTime") or start.get("date")
-        location = item.get("location", None)
-        classification = _classify_event(title)
+    seen_ids: set[str] = set()
+    events: list[dict] = []
 
-        events.append({
-            "title": title,
-            "time": time,
-            "location": location,
-            "setting": classification["setting"],
-            "activity": classification["activity"],
-        })
+    for cal_id in calendar_ids:
+        try:
+            result = service.events().list(
+                calendarId=cal_id,
+                timeMin=week_start.isoformat(),
+                timeMax=week_end.isoformat(),
+                singleEvents=True,
+                orderBy="startTime",
+            ).execute()
+        except Exception:
+            continue
 
+        for item in result.get("items", []):
+            event_id = item.get("id", "")
+            if event_id in seen_ids:
+                continue
+            seen_ids.add(event_id)
+
+            title = item.get("summary", "Untitled")
+            start_info = item.get("start", {})
+            time = start_info.get("dateTime") or start_info.get("date")
+            location = item.get("location", None)
+            classification = _classify_event(title)
+
+            events.append({
+                "title": title,
+                "time": time,
+                "location": location,
+                "setting": classification["setting"],
+                "activity": classification["activity"],
+            })
+
+    events.sort(key=lambda e: e["time"] or "")
     return events
 
 
