@@ -384,20 +384,27 @@ def enrich_pending():
 @app.post("/api/run")
 def run_pipeline():
     """Trigger the full pipeline: Calendar -> Infrared -> Weather -> Claude."""
+    import traceback as _tb
+    step = "import"
     try:
         from modules.calendar_client import get_weekly_events
         from modules.infrared_client import get_climate_for_events
         from modules.weather_client import get_weather_for_events
         from modules.claude_planner import get_weekly_suggestions
 
+        step = "calendar"
         events   = get_weekly_events()
+        step = "infrared"
         enriched = get_climate_for_events(events)
+        step = "weather"
         enriched = get_weather_for_events(enriched)
+        step = "claude"
         final    = get_weekly_suggestions(enriched)
 
         if final:
             _write_plan(final)
         return JSONResponse({"status": "ok", "events": len(final)})
-    except Exception:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Pipeline failed")
+    except Exception as e:
+        detail = f"Pipeline failed at step '{step}': {type(e).__name__}: {e}"
+        _tb.print_exc()
+        raise HTTPException(status_code=500, detail=detail)
