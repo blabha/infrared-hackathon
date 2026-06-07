@@ -1,10 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { API_BASE } from '../constants/api';
-
-WebBrowser.maybeCompleteAuthSession();
 
 type AuthState = {
   user_id: string | null;
@@ -49,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async () => {
     const redirectUrl = Linking.createURL('auth-callback');
     const startUrl = `${API_BASE}/api/auth/google/start?app_redirect=${encodeURIComponent(redirectUrl)}`;
-    await WebBrowser.openAuthSessionAsync(startUrl, redirectUrl);
+    await Linking.openURL(startUrl);
   };
 
   const signOut = async () => {
