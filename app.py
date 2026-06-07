@@ -244,25 +244,25 @@ def get_events(user_id: str = ""):
 
 
 @app.delete("/api/events/{idx}")
-def delete_event(idx: int):
-    events = _read_plan()
+def delete_event(idx: int, user_id: str = ""):
+    events = _read_plan(user_id=user_id)
     if idx >= len(events):
         raise HTTPException(status_code=404, detail="Event not found")
     removed = events.pop(idx)
-    _write_plan(events)
+    _write_plan(events, user_id=user_id)
     return JSONResponse({"status": "deleted", "title": removed.get("title")})
 
 
 @app.put("/api/events/{idx}")
-def update_event(idx: int, body: EventUpdate):
-    events = _read_plan()
+def update_event(idx: int, body: EventUpdate, user_id: str = ""):
+    events = _read_plan(user_id=user_id)
     if idx >= len(events):
         raise HTTPException(status_code=404, detail="Event not found")
     if body.title is not None:
         events[idx]["title"] = body.title
     if body.time is not None:
         events[idx]["time"] = body.time
-    _write_plan(events)
+    _write_plan(events, user_id=user_id)
     return JSONResponse(events[idx])
 
 
@@ -379,14 +379,14 @@ def geocode_address(address: str):
     return {"lat": None, "lng": None, "display_name": ""}
 
 
-def _enrich_event_async(idx: int):
+def _enrich_event_async(idx: int, user_id: str = ""):
     """Background thread: runs Infrared + weather + Claude for one event by index."""
     try:
         from modules.infrared_client import get_climate_for_events
         from modules.weather_client import get_weather_for_events
         from modules.claude_planner import get_weekly_suggestions
 
-        events = _read_plan()
+        events = _read_plan(user_id=user_id)
         if idx >= len(events):
             return
 
@@ -394,19 +394,18 @@ def _enrich_event_async(idx: int):
         single = get_climate_for_events(single)
         single = get_weather_for_events(single)
         events[idx] = single[0]
-        _write_plan(events)
+        _write_plan(events, user_id=user_id)
 
-        # Re-run Claude suggestions across all events so context is consistent
         final = get_weekly_suggestions(events)
         if final:
-            _write_plan(final)
+            _write_plan(final, user_id=user_id)
         print(f"[enrich] Event {idx} enrichment complete")
     except Exception:
         traceback.print_exc()
 
 
 @app.post("/api/events")
-def create_event(body: NewEvent):
+def create_event(body: NewEvent, user_id: str = ""):
     from modules.geocoder import geocode
 
     _INDOOR_KEYWORDS = {"eada", "meeting", "office", "class", "lecture", "seminar",
@@ -433,23 +432,22 @@ def create_event(body: NewEvent):
         "setting": "indoor" if is_indoor else "outdoor",
         "activity": "sedentary",
     }
-    # Store confirmed coordinates so enrichment never needs to geocode again
     if confirmed_lat is not None:
         new_event["lat"] = confirmed_lat
         new_event["lon"] = confirmed_lon
 
-    events = _read_plan()
+    events = _read_plan(user_id=user_id)
     events.append(new_event)
-    _write_plan(events)
+    _write_plan(events, user_id=user_id)
 
-    # UTCI enrichment only starts when we have verified coordinates
     if confirmed_lat is not None:
         idx = len(events) - 1
-        threading.Thread(target=_enrich_event_async, args=(idx,), daemon=True).start()
+        threading.Thread(target=_enrich_event_async, args=(idx, user_id), daemon=True).start()
 
     try:
         from modules.calendar_client import create_google_calendar_event
-        create_google_calendar_event(body.title, body.time, body.location)
+        token_file = str(_user_token_file(user_id)) if user_id else None
+        create_google_calendar_event(body.title, body.time, body.location, token_file=token_file)
     except Exception:
         traceback.print_exc()
 

@@ -153,14 +153,6 @@ export default function HealthScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event, date: targetDate }),
       });
-      await fetch(`${API_BASE}/api/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: event === 'start' ? 'Period Start' : 'Period End',
-          time: `${targetDate}T00:00:00`,
-        }),
-      });
       Alert.alert('Logged', `Period ${event} added — ${targetDate}`);
       recalcPhase();
     } catch {

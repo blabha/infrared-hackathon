@@ -67,18 +67,11 @@ def _get_credentials(token_file: str | None = None):
 
 
 def _upcoming_week() -> tuple[datetime, datetime]:
-    """Returns the upcoming Mon–Sun week (7 full days).
-    If today is Sunday, the week starts tomorrow (Monday).
-    If today is Monday, the week starts today.
-    """
-    today = datetime.now(timezone.utc).date()
-    # weekday(): Mon=0 … Sat=5, Sun=6
-    # (7 - weekday) % 7 → 0 on Monday (start today), 1 on Sunday (start tomorrow), etc.
-    days_to_monday = (7 - today.weekday()) % 7
-    week_start = today + timedelta(days=days_to_monday)
-    week_end   = week_start + timedelta(days=6)
-    start = datetime(week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=timezone.utc)
-    end   = datetime(week_end.year,   week_end.month,   week_end.day,   23, 59, 59, tzinfo=timezone.utc)
+    """Returns a rolling 7-day window starting from today (inclusive)."""
+    today    = datetime.now(timezone.utc).date()
+    week_end = today + timedelta(days=6)
+    start = datetime(today.year,    today.month,    today.day,    0,  0,  0,  tzinfo=timezone.utc)
+    end   = datetime(week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=timezone.utc)
     return start, end
 
 
@@ -134,10 +127,10 @@ def get_weekly_events(token_file: str | None = None) -> list[dict]:
     return events
 
 
-def create_google_calendar_event(title: str, time_str: str, location: str | None = None) -> str | None:
+def create_google_calendar_event(title: str, time_str: str, location: str | None = None, token_file: str | None = None) -> str | None:
     """Create an event in the user's primary Google Calendar. Returns the new event ID or None."""
     try:
-        creds = _get_credentials()
+        creds = _get_credentials(token_file=token_file)
         service = build("calendar", "v3", credentials=creds)
 
         start_dt = datetime.fromisoformat(time_str)

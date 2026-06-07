@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,15 +8,11 @@ function AuthGate() {
   const { user_id, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
-  const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem('onboarding_complete').then(val => setOnboarded(!!val));
-  }, [user_id]);
+    if (loading) return;
 
-  useEffect(() => {
-    if (loading || onboarded === null) return;
-    const screen = segments[0] as string | undefined;
+    const screen       = segments[0] as string | undefined;
     const inLogin      = screen === 'login';
     const inOnboarding = screen === 'onboarding';
     const inCallback   = screen === 'auth-callback';
@@ -25,13 +21,17 @@ function AuthGate() {
       if (!inLogin && !inCallback) router.replace('/login');
       return;
     }
-    // Authenticated
-    if (!onboarded && !inOnboarding) {
-      router.replace('/onboarding');
-    } else if (onboarded && (inLogin || inOnboarding || inCallback || screen === undefined)) {
-      router.replace('/(tabs)');
-    }
-  }, [user_id, loading, onboarded, segments]);
+
+    // Read fresh from storage so we always catch the write done by onboarding.tsx
+    AsyncStorage.getItem('onboarding_complete').then(val => {
+      const onboarded = !!val;
+      if (!onboarded && !inOnboarding) {
+        router.replace('/onboarding');
+      } else if (onboarded && (inLogin || inOnboarding || inCallback || screen === undefined)) {
+        router.replace('/(tabs)');
+      }
+    });
+  }, [user_id, loading, segments]);
 
   return null;
 }

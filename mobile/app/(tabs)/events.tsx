@@ -249,7 +249,7 @@ export default function EventsScreen() {
     const iso = `20${yy}-${mm}-${dd}T${newHour || '09:00'}:00`;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/events`, {
+      const res = await fetch(`${API_BASE}/api/events${user_id ? `?user_id=${user_id}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle.trim(), time: iso, location: newLocation.trim() || undefined }),
@@ -284,7 +284,7 @@ export default function EventsScreen() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
-            await fetch(`${API_BASE}/api/events/${idx}`, { method: 'DELETE' });
+            await fetch(`${API_BASE}/api/events/${idx}${user_id ? `?user_id=${user_id}` : ''}`, { method: 'DELETE' });
             setExpanded(null);
             load();
           } catch {

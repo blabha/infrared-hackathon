@@ -175,7 +175,7 @@ export default function MapScreen() {
   const saveEdit = async () => {
     if (!selected) return;
     try {
-      await fetch(`${API_BASE}/api/events/${selected.idx}`, {
+      await fetch(`${API_BASE}/api/events/${selected.idx}${user_id ? `?user_id=${user_id}` : ''}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: editTitle, time: editTime }),
@@ -193,7 +193,7 @@ export default function MapScreen() {
       return;
     }
     try {
-      await fetch(`${API_BASE}/api/events`, {
+      await fetch(`${API_BASE}/api/events${user_id ? `?user_id=${user_id}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle.trim(), time: newTime.trim(), location: newLocation.trim() || undefined }),
