@@ -75,9 +75,22 @@ def _upcoming_week() -> tuple[datetime, datetime]:
     return start, end
 
 
-def get_weekly_events(token_file: str | None = None) -> list[dict]:
-    """Fetch events for the upcoming Mon–Sun week from ALL calendars."""
-    creds = _get_credentials(token_file=token_file)
+def build_credentials(access_token: str, refresh_token: str, client_id: str, client_secret: str) -> Credentials:
+    """Build a Credentials object directly from token strings (no file needed)."""
+    return Credentials(
+        token=access_token,
+        refresh_token=refresh_token or None,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=SCOPES,
+    )
+
+
+def get_weekly_events(token_file: str | None = None, creds=None) -> list[dict]:
+    """Fetch events for the upcoming week from ALL calendars."""
+    if creds is None:
+        creds = _get_credentials(token_file=token_file)
     service = build("calendar", "v3", credentials=creds)
 
     week_start, week_end = _upcoming_week()

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
@@ -299,7 +300,13 @@ export default function EventsScreen() {
     if (!user_id) return;
     setSyncing(true);
     try {
-      const res = await fetch(`${API_BASE}/api/run?user_id=${encodeURIComponent(user_id)}`, { method: 'POST' });
+      const accessToken  = await AsyncStorage.getItem('access_token');
+      const refreshToken = await AsyncStorage.getItem('refresh_token');
+      const res = await fetch(`${API_BASE}/api/run?user_id=${encodeURIComponent(user_id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
+      });
       if (!res.ok) {
         const txt = await res.text();
         Alert.alert('Sync failed', txt.slice(0, 300));

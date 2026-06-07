@@ -43,15 +43,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const applyAuthUrl = async (url: string) => {
     if (!url.includes('auth-callback')) return;
     const { queryParams } = Linking.parse(url);
-    const uid = queryParams?.['user_id'] as string | undefined;
-    const em  = queryParams?.['email']   as string | undefined;
-    const nm  = queryParams?.['name']    as string | undefined;
+    const uid = queryParams?.['user_id']       as string | undefined;
+    const em  = queryParams?.['email']         as string | undefined;
+    const nm  = queryParams?.['name']          as string | undefined;
+    const at  = queryParams?.['access_token']  as string | undefined;
+    const rt  = queryParams?.['refresh_token'] as string | undefined;
     if (!uid) return;
-    await AsyncStorage.multiSet([
+    const pairs: [string, string][] = [
       ['user_id', uid],
       ['email',   em ?? ''],
       ['name',    nm ?? ''],
-    ]);
+    ];
+    if (at) pairs.push(['access_token',  at]);
+    if (rt) pairs.push(['refresh_token', rt]);
+    await AsyncStorage.multiSet(pairs);
     setUserId(uid);
     setEmail(em || null);
     setName(nm || null);

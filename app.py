@@ -231,9 +231,11 @@ def auth_google_callback(code: str = "", error: str = "", state: str = "climatep
     print(f"[auth/callback] {email} → user_id={user_id}")
 
     qs = urllib.parse.urlencode({
-        "user_id": user_id,
-        "email":   email,
-        "name":    info.get("name", ""),
+        "user_id":       user_id,
+        "email":         email,
+        "name":          info.get("name", ""),
+        "access_token":  access_token,
+        "refresh_token": refresh_token or "",
     })
     return RedirectResponse(f"{app_redirect}?{qs}")
 
@@ -535,17 +537,51 @@ def _enrich_all_async(user_id: str = ""):
         traceback.print_exc()
 
 
+class SyncRequest(BaseModel):
+    access_token:  str | None = None
+    refresh_token: str | None = None
+
+
 @app.post("/api/run")
-def run_pipeline(user_id: str = ""):
-    """Fetch Google Calendar events, save them immediately, then enrich in background."""
+def run_pipeline(body: SyncRequest = SyncRequest(), user_id: str = ""):
+    """Fetch Google Calendar events, save them immediately, then enrich in background.
+
+    Accepts an optional access_token / refresh_token in the body so the mobile
+    app can supply the user's OAuth token directly — avoiding dependency on the
+    ephemeral Railway filesystem.
+    """
     try:
-        from modules.calendar_client import get_weekly_events
+        from modules.calendar_client import get_weekly_events, build_credentials
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Calendar import failed: {e}")
 
     try:
-        token_file = str(_user_token_file(user_id)) if user_id else None
-        events = get_weekly_events(token_file=token_file)
+        if body.access_token:
+            # Build credentials from tokens supplied by the mobile app
+            creds = build_credentials(
+                access_token=body.access_token,
+                refresh_token=body.refresh_token or "",
+                client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
+                client_secret=os.getenv("GOOGLE_CLIENT_SECRET", ""),
+            )
+            # Also persist so same-deployment enrichment can refresh if needed
+            if user_id:
+                token_data = {
+                    "token":         body.access_token,
+                    "refresh_token": body.refresh_token or "",
+                    "token_uri":     "https://oauth2.googleapis.com/token",
+                    "client_id":     os.getenv("GOOGLE_CLIENT_ID", ""),
+                    "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
+                    "scopes": [
+                        "https://www.googleapis.com/auth/calendar.events",
+                        "https://www.googleapis.com/auth/calendar.readonly",
+                    ],
+                }
+                _user_token_file(user_id).write_text(json.dumps(token_data), encoding="utf-8")
+            events = get_weekly_events(creds=creds)
+        else:
+            token_file = str(_user_token_file(user_id)) if user_id else None
+            events = get_weekly_events(token_file=token_file)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Google Calendar fetch failed: {type(e).__name__}: {e}")
@@ -553,7 +589,6 @@ def run_pipeline(user_id: str = ""):
     if events:
         _write_plan(events, user_id=user_id)
 
-    # Enrich with Infrared / weather / Claude in the background
     threading.Thread(target=_enrich_all_async, args=(user_id,), daemon=True).start()
 
     return JSONResponse({"status": "ok", "events": len(events)})

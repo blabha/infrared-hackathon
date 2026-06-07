@@ -29,8 +29,12 @@ export default function OnboardingScreen() {
     setCalSyncing(true);
     setCalError('');
     try {
+      const accessToken  = await AsyncStorage.getItem('access_token');
+      const refreshToken = await AsyncStorage.getItem('refresh_token');
       const res = await fetch(`${API_BASE}/api/run?user_id=${encodeURIComponent(user_id)}`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
       });
       if (!res.ok) {
         const text = await res.text();
