@@ -515,31 +515,45 @@ def enrich_pending():
     return JSONResponse({"status": "enriching", "pending": pending})
 
 
-@app.post("/api/run")
-def run_pipeline(user_id: str = ""):
-    """Trigger the full pipeline: Calendar -> Infrared -> Weather -> Claude."""
-    import traceback as _tb
-    step = "import"
+def _enrich_all_async(user_id: str = ""):
+    """Background thread: run Infrared + weather + Claude on the saved calendar events."""
     try:
-        from modules.calendar_client import get_weekly_events
         from modules.infrared_client import get_climate_for_events
         from modules.weather_client import get_weather_for_events
         from modules.claude_planner import get_weekly_suggestions
 
-        step = "calendar"
-        token_file = str(_user_token_file(user_id)) if user_id else None
-        events   = get_weekly_events(token_file=token_file)
-        step = "infrared"
+        events   = _read_plan(user_id=user_id)
+        if not events:
+            return
         enriched = get_climate_for_events(events)
-        step = "weather"
         enriched = get_weather_for_events(enriched)
-        step = "claude"
         final    = get_weekly_suggestions(enriched)
-
         if final:
             _write_plan(final, user_id=user_id)
-        return JSONResponse({"status": "ok", "events": len(final)})
-    except BaseException as e:
-        detail = f"Pipeline failed at step '{step}': {type(e).__name__}: {e}"
-        _tb.print_exc()
-        raise HTTPException(status_code=500, detail=detail)
+        print(f"[enrich-all] Done — {len(final)} events for user {user_id or 'global'}")
+    except Exception:
+        traceback.print_exc()
+
+
+@app.post("/api/run")
+def run_pipeline(user_id: str = ""):
+    """Fetch Google Calendar events, save them immediately, then enrich in background."""
+    try:
+        from modules.calendar_client import get_weekly_events
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Calendar import failed: {e}")
+
+    try:
+        token_file = str(_user_token_file(user_id)) if user_id else None
+        events = get_weekly_events(token_file=token_file)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Google Calendar fetch failed: {type(e).__name__}: {e}")
+
+    if events:
+        _write_plan(events, user_id=user_id)
+
+    # Enrich with Infrared / weather / Claude in the background
+    threading.Thread(target=_enrich_all_async, args=(user_id,), daemon=True).start()
+
+    return JSONResponse({"status": "ok", "events": len(events)})

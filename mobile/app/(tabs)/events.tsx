@@ -190,6 +190,7 @@ export default function EventsScreen() {
   const [enriching, setEnriching] = useState(false);
   const [lastPeriodStart, setLastPeriodStart] = useState<Date | null>(null);
   const [isWoman, setIsWoman] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fmtDDMMYY = (d: Date) => {
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -256,6 +257,12 @@ export default function EventsScreen() {
       });
       if (!res.ok) throw new Error(await res.text());
       setShowAdd(false);
+      // Jump calendar to the new event's date
+      const dd = digits.slice(0,2), mm = digits.slice(2,4), yy = digits.slice(4,6);
+      const evDate = new Date(`20${yy}-${mm}-${dd}`);
+      setCalYear(evDate.getFullYear());
+      setCalMonth(evDate.getMonth());
+      setSelectedDate(evDate);
       load();
       if (newLocation.trim()) {
         setEnriching(true);
@@ -268,14 +275,45 @@ export default function EventsScreen() {
     }
   };
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (jumpToFirst = false) => {
     try {
       const res = await fetch(`${API_BASE}/api/events${user_id ? `?user_id=${user_id}` : ''}`);
       const data = await res.json();
-      if (Array.isArray(data)) setEvents(data);
+      if (Array.isArray(data)) {
+        setEvents(data);
+        if (jumpToFirst && data.length > 0) {
+          const first = data.find((e: any) => e.time);
+          if (first) {
+            const d = new Date(first.time);
+            setCalYear(d.getFullYear());
+            setCalMonth(d.getMonth());
+            setSelectedDate(d);
+          }
+        }
+      }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [user_id]);
+
+  const syncCalendar = async () => {
+    if (!user_id) return;
+    setSyncing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/run?user_id=${encodeURIComponent(user_id)}`, { method: 'POST' });
+      if (!res.ok) {
+        const txt = await res.text();
+        Alert.alert('Sync failed', txt.slice(0, 300));
+      } else {
+        const json = await res.json();
+        await load(true);
+        Alert.alert('Synced', `${json.events} event${json.events !== 1 ? 's' : ''} imported. Climate data loading in background.`);
+      }
+    } catch (e: any) {
+      Alert.alert('Sync error', e?.message ?? 'Could not reach server');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const deleteEvent = async (idx: number, title: string) => {
     Alert.alert('Delete event', `Remove "${title}"?`, [
@@ -376,6 +414,12 @@ export default function EventsScreen() {
             <View style={s.monthNavRight}>
               <TouchableOpacity onPress={nextMonth} style={s.navBtn}>
                 <Text style={s.navArrow}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={syncCalendar} style={s.syncBtn} disabled={syncing}>
+                {syncing
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={s.syncBtnText}>Sync</Text>
+                }
               </TouchableOpacity>
               <TouchableOpacity onPress={openAdd} style={s.addBtn}>
                 <Text style={s.addBtnText}>+</Text>
@@ -651,7 +695,9 @@ const s = StyleSheet.create({
   deleteBtn: { marginTop: 12, paddingVertical: 10, alignItems: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fff' },
   deleteBtnText: { fontSize: 13, fontWeight: '600', color: '#ef4444' },
 
-  monthNavRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  monthNavRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  syncBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#0ea5e9', minWidth: 48, alignItems: 'center' },
+  syncBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   addBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center' },
   addBtnText: { color: '#fff', fontSize: 20, lineHeight: 22, fontWeight: '400' },
 

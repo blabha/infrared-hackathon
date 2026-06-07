@@ -38,7 +38,7 @@ export default function OnboardingScreen() {
       }
       setCalSynced(true);
     } catch (e: any) {
-      setCalError('Could not sync. You can try again from the Events tab.');
+      setCalError(e?.message ? String(e.message).slice(0, 120) : 'Could not sync — try again from the Events tab.');
     } finally {
       setCalSyncing(false);
     }
