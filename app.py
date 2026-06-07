@@ -72,7 +72,7 @@ def index():
 
 @app.get("/api/health-check")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "v7943ce2"}
 
 
 BACKUP_FILE = OUTPUT_DIR / "weekly_plan.backup.json"
@@ -404,7 +404,7 @@ def run_pipeline():
         if final:
             _write_plan(final)
         return JSONResponse({"status": "ok", "events": len(final)})
-    except Exception as e:
+    except BaseException as e:
         detail = f"Pipeline failed at step '{step}': {type(e).__name__}: {e}"
         _tb.print_exc()
         raise HTTPException(status_code=500, detail=detail)
