@@ -160,7 +160,7 @@ def auth_google(body: GoogleAuthBody):
 
 
 @app.get("/api/auth/google/start")
-def auth_google_start():
+def auth_google_start(app_redirect: str = "climateplanner://auth-callback"):
     from fastapi.responses import RedirectResponse
     client_id    = os.getenv("GOOGLE_CLIENT_ID", "")
     callback_url = os.getenv("GOOGLE_CALLBACK_URL", "")
@@ -171,15 +171,17 @@ def auth_google_start():
         "scope":         "openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
         "access_type":   "offline",
         "prompt":        "select_account",
+        "state":         app_redirect,
     })
     return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{params}")
 
 
 @app.get("/api/auth/google/callback")
-def auth_google_callback(code: str = "", error: str = ""):
+def auth_google_callback(code: str = "", error: str = "", state: str = "climateplanner://auth-callback"):
     from fastapi.responses import RedirectResponse
+    app_redirect = state if state.startswith(("climateplanner://", "exp://")) else "climateplanner://auth-callback"
     if error or not code:
-        return RedirectResponse(f"climateplanner://auth?error={urllib.parse.quote(error or 'cancelled')}")
+        return RedirectResponse(f"{app_redirect}?error={urllib.parse.quote(error or 'cancelled')}")
 
     client_id     = os.getenv("GOOGLE_CLIENT_ID", "")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
@@ -197,7 +199,7 @@ def auth_google_callback(code: str = "", error: str = ""):
         timeout=10,
     )
     if not token_r.ok:
-        return RedirectResponse(f"climateplanner://auth?error=token_exchange_failed")
+        return RedirectResponse(f"{app_redirect}?error=token_exchange_failed")
     tokens = token_r.json()
 
     access_token  = tokens.get("access_token", "")
@@ -209,7 +211,7 @@ def auth_google_callback(code: str = "", error: str = ""):
         timeout=10,
     )
     if not info_r.ok:
-        return RedirectResponse(f"climateplanner://auth?error=userinfo_failed")
+        return RedirectResponse(f"{app_redirect}?error=userinfo_failed")
     info    = info_r.json()
     email   = info["email"]
     user_id = hashlib.md5(email.encode()).hexdigest()
@@ -233,7 +235,7 @@ def auth_google_callback(code: str = "", error: str = ""):
         "email":   email,
         "name":    info.get("name", ""),
     })
-    return RedirectResponse(f"climateplanner://auth-callback?{qs}")
+    return RedirectResponse(f"{app_redirect}?{qs}")
 
 
 @app.get("/api/events")
