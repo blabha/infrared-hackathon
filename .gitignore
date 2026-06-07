@@ -16,8 +16,7 @@ token.json
 client_secret_*.json
 
 # Local data (persisted on Railway volume in production)
-output/weekly_plan*.json
-output/enriched_events.json
+output/
 data/
 
 # Cache
