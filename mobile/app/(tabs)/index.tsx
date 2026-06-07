@@ -130,6 +130,17 @@ export default function MapScreen() {
       });
       setCoords(instant);
       geocodeFallback(data, instant);
+
+      // Auto-fit map to show all enriched markers
+      const allCoords = Object.values(instant);
+      if (allCoords.length > 0) {
+        setTimeout(() => {
+          mapRef.current?.fitToCoordinates(allCoords, {
+            edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+            animated: true,
+          });
+        }, 400);
+      }
     } catch (e) {
       console.error('loadEvents failed:', e);
     } finally {
@@ -249,7 +260,7 @@ export default function MapScreen() {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation customMapStyle={MAP_STYLE} showsTraffic={false} showsPointsOfInterest={false}>
+          <MapView ref={mapRef} style={styles.map} initialRegion={region} showsUserLocation customMapStyle={MAP_STYLE} showsTraffic={false} showsPointsOfInterest={false}>
 
             {/* UTCI heatmap overlay */}
             {events.map((ev, i) => {
