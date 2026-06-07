@@ -5,4 +5,4 @@ builder = "nixpacks"
 startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/api/health-check"
 healthcheckTimeout = 300
-restartPolicyType = "on-failure"
+restartPolicyType = "ON_FAILURE"
