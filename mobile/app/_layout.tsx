@@ -28,7 +28,7 @@ function AuthGate() {
     // Authenticated
     if (!onboarded && !inOnboarding) {
       router.replace('/onboarding');
-    } else if (onboarded && (inLogin || inOnboarding || screen === undefined)) {
+    } else if (onboarded && (inLogin || inOnboarding || inCallback || screen === undefined)) {
       router.replace('/(tabs)');
     }
   }, [user_id, loading, onboarded, segments]);

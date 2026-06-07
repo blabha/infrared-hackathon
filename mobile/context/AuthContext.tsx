@@ -39,8 +39,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Process an incoming deep-link URL and save session if it's an auth callback
+  const applyAuthUrl = async (url: string) => {
+    if (!url.includes('auth-callback')) return;
+    const { queryParams } = Linking.parse(url);
+    const uid = queryParams?.['user_id'] as string | undefined;
+    const em  = queryParams?.['email']   as string | undefined;
+    const nm  = queryParams?.['name']    as string | undefined;
+    if (!uid) return;
+    await AsyncStorage.multiSet([
+      ['user_id', uid],
+      ['email',   em ?? ''],
+      ['name',    nm ?? ''],
+    ]);
+    setUserId(uid);
+    setEmail(em || null);
+    setName(nm || null);
+  };
+
   useEffect(() => {
     loadSession().finally(() => setLoading(false));
+
+    // Handle deep link when app was already running (backgrounded)
+    const sub = Linking.addEventListener('url', ({ url }) => applyAuthUrl(url));
+
+    // Handle deep link that cold-launched or resumed the app
+    Linking.getInitialURL().then(url => { if (url) applyAuthUrl(url); });
+
+    return () => sub.remove();
   }, []);
 
   const signIn = async () => {
