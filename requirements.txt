@@ -1,0 +1,14 @@
+anthropic
+fastapi
+uvicorn[standard]
+google-auth
+google-auth-oauthlib
+google-api-python-client
+infrared-sdk
+openmeteo-requests
+requests-cache
+retry-requests
+requests
+python-dotenv
+Pillow
+numpy

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Climate & Metabolic Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root {
+      --bg:       #f0f6fb;
+      --surface:  #ffffff;
+      --card:     #ffffff;
+      --border:   #d0e4f0;
+      --text:     #0f2535;
+      --muted:    #6b90a8;
+      --accent:   #0ea5e9;
+      --solar:    #f59e0b;
+      --radius:   12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: var(--bg); color: var(--text); }
+
+    header { padding: 13px 24px; background: var(--surface);
+             border-bottom: 1px solid var(--border);
+             display: flex; align-items: center; gap: 12px;
+             box-shadow: 0 1px 4px rgba(14,165,233,.08); }
+    header h1 { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.2px; }
+    header h1 em { color: var(--solar); font-style: normal; }
+    #status { margin-left: auto; font-size: 11px; color: var(--accent);
+              background: rgba(14,165,233,.08); padding: 3px 12px;
+              border-radius: 20px; border: 1px solid rgba(14,165,233,.2); font-weight: 500; }
+
+    #map { height: 400px; width: 100%; }
+
+    .cards { padding: 20px 24px; display: grid;
+             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+
+    .card { background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 16px;
+            cursor: pointer; transition: border-color .15s, box-shadow .15s;
+            box-shadow: 0 2px 8px rgba(14,165,233,.06); }
+    .card:hover { border-color: var(--accent);
+                  box-shadow: 0 4px 16px rgba(14,165,233,.12); }
+    .card.active { border-color: var(--solar);
+                   box-shadow: 0 4px 16px rgba(245,158,11,.15); }
+
+    .card-top { display: flex; align-items: flex-start;
+                justify-content: space-between; margin-bottom: 10px; gap: 10px; }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .card-meta { font-size: 11px; color: var(--muted); }
+    .badge { padding: 3px 9px; border-radius: 10px; font-size: 10px;
+             font-weight: 700; color: #fff; white-space: nowrap; flex-shrink: 0; }
+
+    .divider { height: 1px; background: var(--border); margin: 10px 0; }
+
+    .card-climate { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+    .metric { font-size: 11px; color: var(--muted); }
+    .metric span { color: var(--text); font-weight: 600; }
+
+    .sug-row { margin-top: 10px; }
+    .sug-label { font-size: 9px; font-weight: 700; color: var(--muted);
+                 text-transform: uppercase; letter-spacing: .7px; margin-bottom: 4px; }
+    .sug-text { font-size: 12px; color: #2d5570; line-height: 1.55; }
+
+    .legend { position: absolute; bottom: 14px; right: 12px; z-index: 999;
+              background: rgba(255,255,255,.94);
+              border: 1px solid var(--border); border-radius: 10px;
+              padding: 10px 13px; font-size: 11px; color: var(--text);
+              box-shadow: 0 2px 12px rgba(14,165,233,.1);
+              backdrop-filter: blur(6px); }
+    .legend h4 { font-size: 9px; font-weight: 700; color: var(--muted);
+                 text-transform: uppercase; letter-spacing: .7px; margin-bottom: 7px; }
+    .leg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    .dot { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+
+    .map-wrap { position: relative; }
+    .no-data { padding: 60px; text-align: center; color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌡 Climate &amp; <em>Metabolic</em> Planner</h1>
+  <span id="status">Loading…</span>
+</header>
+
+<div class="map-wrap">
+  <div id="map"></div>
+  <div class="legend">
+    <h4>UTCI Thermal Comfort</h4>
+    <div class="leg-row"><div class="dot" style="background:#0000B4"></div>Extreme cold (&lt;9°C)</div>
+    <div class="leg-row"><div class="dot" style="background:#4682FF"></div>Cold stress (9–18°C)</div>
+    <div class="leg-row"><div class="dot" style="background:#00C850"></div>Comfortable (18–26°C)</div>
+    <div class="leg-row"><div class="dot" style="background:#FFDC00"></div>Moderate heat (26–32°C)</div>
+    <div class="leg-row"><div class="dot" style="background:#FF6400"></div>Strong heat (32–38°C)</div>
+    <div class="leg-row"><div class="dot" style="background:#C80000"></div>Extreme heat (&gt;38°C)</div>
+  </div>
+</div>
+
+<div class="cards" id="cards"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const BANDS = [
+  { max: 9,        hex: '#0000B4', label: 'Extreme cold' },
+  { max: 18,       hex: '#4682FF', label: 'Cold stress' },
+  { max: 26,       hex: '#00C850', label: 'Comfortable' },
+  { max: 32,       hex: '#FFDC00', label: 'Moderate heat' },
+  { max: 38,       hex: '#FF6400', label: 'Strong heat' },
+  { max: Infinity, hex: '#C80000', label: 'Extreme heat' },
+];
+const utciHex   = v => v == null ? '#555' : (BANDS.find(b => v < b.max) || BANDS.at(-1)).hex;
+const utciLabel = v => v == null ? 'No climate data' : (BANDS.find(b => v < b.max) || BANDS.at(-1)).label;
+
+const map = L.map('map').setView([48.2, 11.6], 12);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; CartoDB', subdomains: 'abcd', maxZoom: 20
+}).addTo(map);
+
+const markers = {};
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleString('en-GB',
+      { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  } catch { return iso; }
+}
+
+function buildCards(events) {
+  const container = document.getElementById('cards');
+  if (!events.length) {
+    container.innerHTML = '<div class="no-data">No events found — run <code>main.py</code> first.</div>';
+    return;
+  }
+
+  events.forEach((ev, i) => {
+    const utci   = ev.climate?.thermal_comfort_utci_c?.mean;
+    const solar  = ev.climate?.solar_radiation_wm2?.mean;
+    const wind   = ev.climate?.wind_speed_ms?.mean;
+    const rain   = ev.weather?.precipitation_mm;
+    const humid  = ev.weather?.relative_humidity_pct;
+    const color  = utciHex(utci);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${i}`;
+
+    const cityName = ev.location
+      ? ev.location.split(',').slice(-2).join(',').trim()
+      : 'No location';
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${ev.title || 'Untitled'}</div>
+          <div class="card-meta">${fmtTime(ev.time)} &nbsp;·&nbsp; ${cityName}</div>
+        </div>
+        <span class="badge" style="background:${color}">${utci != null ? utci.toFixed(1)+'°C' : '—'}</span>
+      </div>
+      ${ev.climate ? `
+      <div class="card-climate">
+        ${utci   != null ? `<div class="metric">🌡 UTCI <span>${utci.toFixed(1)}°C</span> <em style="color:${color};font-size:10px">${utciLabel(utci)}</em></div>` : ''}
+        ${solar  != null ? `<div class="metric">☀️ Solar <span>${solar} W/m²</span></div>` : ''}
+        ${wind   != null ? `<div class="metric">💨 Wind <span>${wind} m/s</span></div>` : ''}
+        ${rain   != null ? `<div class="metric">🌧 Rain <span>${rain} mm</span></div>` : ''}
+        ${humid  != null ? `<div class="metric">💧 Humidity <span>${humid}%</span></div>` : ''}
+      </div>` : ''}
+      ${ev.suggestions?.clothing ? `
+      <div class="sug-row"><div class="sug-label">👕 Clothing</div>
+        <div class="sug-text">${ev.suggestions.clothing}</div></div>` : ''}
+      ${ev.suggestions?.wellness ? `
+      <div class="sug-row" style="margin-top:8px"><div class="sug-label">💧 Wellness</div>
+        <div class="sug-text">${ev.suggestions.wellness}</div></div>` : ''}
+    `;
+
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      if (markers[i]) map.panTo(markers[i].getLatLng());
+    });
+
+    container.appendChild(card);
+  });
+}
+
+function buildMap(events) {
+  const pts = [];
+  events.forEach((ev, i) => {
+    const c = ev.climate;
+    if (!c?.lat || !c?.lon) return;
+
+    const utci  = c.thermal_comfort_utci_c?.mean;
+    const color = utciHex(utci);
+
+    // 500 m neighbourhood ring
+    L.circle([c.lat, c.lon], {
+      radius: 500,
+      color: color,
+      weight: 2,
+      opacity: 0.6,
+      fillColor: color,
+      fillOpacity: 0.06,
+      dashArray: '6 5',
+    }).addTo(map);
+
+    // UTCI heatmap overlay (sits inside the neighbourhood ring)
+    if (c.utci_overlay) {
+      L.imageOverlay(c.utci_overlay.png_url, c.utci_overlay.bounds, {
+        opacity: 0.65, interactive: false,
+      }).addTo(map);
+    }
+
+    const m = L.circleMarker([c.lat, c.lon], {
+      radius: 10, fillColor: color, color: '#fff', weight: 3, fillOpacity: 1,
+    }).addTo(map);
+
+    m.bindTooltip(
+      `<strong>${ev.title || 'Event'}</strong><br>` +
+      `<span style="color:${color}">${utci != null ? utci.toFixed(1)+'°C — ' : ''}${utciLabel(utci)}</span>`,
+      { sticky: true }
+    );
+
+    m.on('click', () => {
+      const card = document.getElementById(`card-${i}`);
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+      if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    });
+
+    markers[i] = m;
+    pts.push([c.lat, c.lon]);
+  });
+
+  if (pts.length) map.fitBounds(pts, { padding: [40, 40] });
+}
+
+async function init() {
+  try {
+    const res = await fetch('/api/events');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const events = await res.json();
+    document.getElementById('status').textContent =
+      events.length ? `${events.length} events this week` : 'No events — run main.py first';
+    buildCards(events);
+    buildMap(events);
+  } catch (e) {
+    document.getElementById('status').textContent = 'Error: ' + e.message;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

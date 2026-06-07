@@ -1,0 +1,102 @@
+<svg width="860" height="420" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect width="860" height="420" fill="#f8f9fb" rx="12"/>
+  <text x="28" y="30" font-size="11" fill="#9b9bb4" font-weight="600" letter-spacing="1">DIAGRAM 4 — DEPLOYMENT</text>
+  <text x="28" y="56" font-size="22" fill="#1a1a2e" font-weight="700">Where does each part <tspan fill="#6b6bff">run</tspan>?</text>
+
+  <defs>
+    <marker id="ard" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#9b9bb4"/>
+    </marker>
+  </defs>
+
+  <!-- ── Phone ── -->
+  <rect x="28" y="80" width="180" height="300" rx="12" fill="#f0f0ff" stroke="#6b6bff" stroke-width="2"/>
+  <text x="118" y="102" text-anchor="middle" font-size="11" fill="#6b6bff" font-weight="700">USER'S PHONE</text>
+
+  <rect x="46" y="114" width="144" height="54" rx="8" fill="#e8e8ff" stroke="#6b6bff" stroke-width="1"/>
+  <text x="118" y="136" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">React Native App</text>
+  <text x="118" y="152" text-anchor="middle" font-size="10" fill="#5a5a8a">Expo (iOS / Android)</text>
+  <text x="118" y="166" text-anchor="middle" font-size="9" fill="#7a7aaa">Map · Calendar · Health</text>
+
+  <rect x="46" y="178" width="144" height="36" rx="8" fill="#fff" stroke="#d0d0ee" stroke-width="1"/>
+  <text x="118" y="198" text-anchor="middle" font-size="10" fill="#5a5a8a">AsyncStorage</text>
+  <text x="118" y="212" text-anchor="middle" font-size="9" fill="#9a9aba">onboarding flag</text>
+
+  <rect x="46" y="226" width="144" height="36" rx="8" fill="#fff" stroke="#d0d0ee" stroke-width="1"/>
+  <text x="118" y="246" text-anchor="middle" font-size="10" fill="#5a5a8a">constants/api.ts</text>
+  <text x="118" y="260" text-anchor="middle" font-size="9" fill="#9a9aba">API_BASE (LAN IP)</text>
+
+  <text x="118" y="294" text-anchor="middle" font-size="9" fill="#9b9bb4">communicates via</text>
+  <text x="118" y="308" text-anchor="middle" font-size="9" fill="#9b9bb4">REST/JSON over WiFi</text>
+
+  <!-- Arrow Phone → Backend -->
+  <line x1="208" y1="200" x2="258" y2="200" stroke="#9b9bb4" stroke-width="1.5" marker-end="url(#ard)"/>
+  <text x="233" y="192" text-anchor="middle" font-size="9" fill="#888">LAN</text>
+
+  <!-- ── Local Machine ── -->
+  <rect x="258" y="80" width="220" height="300" rx="12" fill="#f0fff4" stroke="#3da86e" stroke-width="2"/>
+  <text x="368" y="102" text-anchor="middle" font-size="11" fill="#3da86e" font-weight="700">LOCAL MACHINE</text>
+
+  <rect x="276" y="114" width="184" height="70" rx="8" fill="#e8f4e8" stroke="#3da86e" stroke-width="1"/>
+  <text x="368" y="136" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">FastAPI (app.py)</text>
+  <text x="368" y="152" text-anchor="middle" font-size="10" fill="#2d7a4f">uvicorn · port 8000</text>
+  <text x="368" y="166" text-anchor="middle" font-size="9" fill="#4a9a6a">REST API + pipeline</text>
+  <text x="368" y="180" text-anchor="middle" font-size="9" fill="#4a9a6a">background threads</text>
+
+  <rect x="276" y="196" width="184" height="36" rx="8" fill="#fff8e1" stroke="#ffc107" stroke-width="1"/>
+  <text x="368" y="216" text-anchor="middle" font-size="10" fill="#9a7200">weekly_plan.json</text>
+  <text x="368" y="230" text-anchor="middle" font-size="9" fill="#b08800">output/ · data/</text>
+
+  <rect x="276" y="244" width="88" height="36" rx="8" fill="#fff" stroke="#d0d0ee" stroke-width="1"/>
+  <text x="320" y="264" text-anchor="middle" font-size="10" fill="#5a5a8a">token.json</text>
+  <text x="320" y="278" text-anchor="middle" font-size="9" fill="#9a9aba">Google OAuth</text>
+
+  <rect x="372" y="244" width="88" height="36" rx="8" fill="#fff" stroke="#d0d0ee" stroke-width="1"/>
+  <text x="416" y="264" text-anchor="middle" font-size="10" fill="#5a5a8a">.env</text>
+  <text x="416" y="278" text-anchor="middle" font-size="9" fill="#9a9aba">API keys</text>
+
+  <rect x="276" y="292" width="184" height="36" rx="8" fill="#fff" stroke="#d0d0ee" stroke-width="1"/>
+  <text x="368" y="312" text-anchor="middle" font-size="10" fill="#5a5a8a">output/utci/*.png</text>
+  <text x="368" y="326" text-anchor="middle" font-size="9" fill="#9a9aba">UTCI overlay tiles</text>
+
+  <!-- Arrow Backend → Cloud APIs -->
+  <line x1="478" y1="190" x2="528" y2="190" stroke="#9b9bb4" stroke-width="1.5" marker-end="url(#ard)"/>
+  <text x="503" y="182" text-anchor="middle" font-size="9" fill="#888">HTTPS</text>
+
+  <!-- ── Cloud APIs ── -->
+  <rect x="528" y="80" width="300" height="300" rx="12" fill="#fff8f0" stroke="#ff9800" stroke-width="2"/>
+  <text x="678" y="102" text-anchor="middle" font-size="11" fill="#ff9800" font-weight="700">CLOUD APIS</text>
+
+  <!-- Infrared -->
+  <rect x="546" y="114" width="124" height="60" rx="8" fill="#fff3e0" stroke="#ff9800" stroke-width="1.5"/>
+  <text x="608" y="136" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Infrared City</text>
+  <text x="608" y="152" text-anchor="middle" font-size="9" fill="#e65c00">api.infrared.city/v2</text>
+  <text x="608" y="166" text-anchor="middle" font-size="9" fill="#e65c00">UTCI simulation</text>
+
+  <!-- Claude -->
+  <rect x="682" y="114" width="124" height="60" rx="8" fill="#fce4ff" stroke="#b94dff" stroke-width="1.5"/>
+  <text x="744" y="136" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Anthropic</text>
+  <text x="744" y="152" text-anchor="middle" font-size="9" fill="#7b2db0">api.anthropic.com</text>
+  <text x="744" y="166" text-anchor="middle" font-size="9" fill="#7b2db0">Claude Opus 4.8</text>
+
+  <!-- Open-Meteo -->
+  <rect x="546" y="192" width="124" height="60" rx="8" fill="#e3f2fd" stroke="#1e88e5" stroke-width="1.5"/>
+  <text x="608" y="214" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Open-Meteo</text>
+  <text x="608" y="230" text-anchor="middle" font-size="9" fill="#1565c0">api.open-meteo.com</text>
+  <text x="608" y="246" text-anchor="middle" font-size="9" fill="#1565c0">weather (free)</text>
+
+  <!-- Google Calendar -->
+  <rect x="682" y="192" width="124" height="60" rx="8" fill="#e8f4e8" stroke="#3da86e" stroke-width="1.5"/>
+  <text x="744" y="214" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Google Calendar</text>
+  <text x="744" y="230" text-anchor="middle" font-size="9" fill="#2d7a4f">googleapis.com</text>
+  <text x="744" y="246" text-anchor="middle" font-size="9" fill="#2d7a4f">read + write events</text>
+
+  <!-- Nominatim -->
+  <rect x="614" y="274" width="124" height="60" rx="8" fill="#fff" stroke="#999" stroke-width="1.5"/>
+  <text x="676" y="296" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Nominatim</text>
+  <text x="676" y="312" text-anchor="middle" font-size="9" fill="#555">nominatim.openstreetmap</text>
+  <text x="676" y="326" text-anchor="middle" font-size="9" fill="#555">geocoding (free)</text>
+
+  <!-- optional deploy note -->
+  <text x="258" y="400" font-size="10" fill="#9b9bb4">* Backend can also deploy to Railway / Render with same API surface</text>
+</svg>

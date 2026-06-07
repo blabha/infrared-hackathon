@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.cache/
+
+# Secrets — never commit these
+.env
+token.json
+client_secret_*.json
+
+# Local data (persisted on Railway volume in production)
+output/weekly_plan*.json
+output/enriched_events.json
+data/
+
+# Cache
+.cache*
+*.sqlite
+
+# Misc
+.DS_Store
+Thumbs.db
+diagrams/convert.py

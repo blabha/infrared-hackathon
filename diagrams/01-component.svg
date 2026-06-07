@@ -1,0 +1,71 @@
+<svg width="800" height="340" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <!-- background -->
+  <rect width="800" height="340" fill="#f8f9fb" rx="12"/>
+
+  <!-- title -->
+  <text x="28" y="36" font-size="11" fill="#9b9bb4" font-weight="600" letter-spacing="1">DIAGRAM 1 — COMPONENT</text>
+  <text x="28" y="62" font-size="22" fill="#1a1a2e" font-weight="700">What are the <tspan fill="#6b6bff">parts</tspan>?</text>
+
+  <!-- ── boxes ── -->
+  <!-- React Native App -->
+  <rect x="28" y="90" width="150" height="80" rx="10" fill="#e8e8ff" stroke="#6b6bff" stroke-width="1.5"/>
+  <text x="103" y="124" text-anchor="middle" font-size="13" fill="#1a1a2e" font-weight="700">React Native</text>
+  <text x="103" y="142" text-anchor="middle" font-size="11" fill="#5a5a8a">App (Expo)</text>
+  <text x="103" y="158" text-anchor="middle" font-size="10" fill="#7a7aaa">Map · Calendar · Health</text>
+
+  <!-- Arrow 1 -->
+  <line x1="178" y1="130" x2="228" y2="130" stroke="#aaa" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="203" y="122" text-anchor="middle" font-size="9" fill="#888">REST/JSON</text>
+
+  <!-- FastAPI Backend -->
+  <rect x="228" y="90" width="160" height="80" rx="10" fill="#e8f4e8" stroke="#3da86e" stroke-width="1.5"/>
+  <text x="308" y="120" text-anchor="middle" font-size="13" fill="#1a1a2e" font-weight="700">FastAPI Backend</text>
+  <text x="308" y="138" text-anchor="middle" font-size="11" fill="#2d7a4f">app.py · port 8000</text>
+  <text x="308" y="154" text-anchor="middle" font-size="10" fill="#4a9a6a">holds all API keys</text>
+
+  <!-- Arrow 2 -->
+  <line x1="388" y1="110" x2="438" y2="110" stroke="#aaa" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="413" y="103" text-anchor="middle" font-size="9" fill="#888">SDK call</text>
+
+  <!-- Arrow 3 -->
+  <line x1="388" y1="138" x2="438" y2="190" stroke="#aaa" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="420" y="162" text-anchor="middle" font-size="9" fill="#888">HTTPS</text>
+
+  <!-- Arrow 4 -->
+  <line x1="388" y1="158" x2="438" y2="250" stroke="#aaa" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Infrared SDK -->
+  <rect x="438" y="84" width="150" height="60" rx="10" fill="#fff3e0" stroke="#ff9800" stroke-width="1.5"/>
+  <text x="513" y="110" text-anchor="middle" font-size="12" fill="#1a1a2e" font-weight="700">Infrared SDK</text>
+  <text x="513" y="128" text-anchor="middle" font-size="10" fill="#e65c00">UTCI simulation</text>
+
+  <!-- Claude API -->
+  <rect x="438" y="164" width="150" height="60" rx="10" fill="#fce4ff" stroke="#b94dff" stroke-width="1.5"/>
+  <text x="513" y="190" text-anchor="middle" font-size="12" fill="#1a1a2e" font-weight="700">Claude API</text>
+  <text x="513" y="208" text-anchor="middle" font-size="10" fill="#7b2db0">clothing + wellness</text>
+
+  <!-- Open-Meteo -->
+  <rect x="438" y="244" width="150" height="60" rx="10" fill="#e3f2fd" stroke="#1e88e5" stroke-width="1.5"/>
+  <text x="513" y="270" text-anchor="middle" font-size="12" fill="#1a1a2e" font-weight="700">Open-Meteo</text>
+  <text x="513" y="288" text-anchor="middle" font-size="10" fill="#1565c0">weather forecast</text>
+
+  <!-- Arrow to data -->
+  <line x1="308" y1="170" x2="308" y2="230" stroke="#aaa" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="320" y="204" font-size="9" fill="#888">write</text>
+
+  <!-- Data store -->
+  <rect x="228" y="234" width="160" height="60" rx="10" fill="#fff8e1" stroke="#ffc107" stroke-width="1.5"/>
+  <text x="308" y="259" text-anchor="middle" font-size="12" fill="#1a1a2e" font-weight="700">weekly_plan.json</text>
+  <text x="308" y="277" text-anchor="middle" font-size="10" fill="#9a7200">enriched events store</text>
+
+  <!-- Arrow read back -->
+  <path d="M228 264 Q150 264 150 210 Q150 170 178 170" stroke="#aaa" stroke-width="1.5" fill="none" marker-end="url(#arr)" stroke-dasharray="4,3"/>
+  <text x="150" y="214" text-anchor="middle" font-size="9" fill="#888">read</text>
+
+  <!-- arrow marker -->
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#aaa"/>
+    </marker>
+  </defs>
+</svg>

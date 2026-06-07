@@ -1,0 +1,95 @@
+<svg width="860" height="520" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect width="860" height="520" fill="#f8f9fb" rx="12"/>
+  <text x="28" y="30" font-size="11" fill="#9b9bb4" font-weight="600" letter-spacing="1">DIAGRAM 2 — SEQUENCE</text>
+  <text x="28" y="56" font-size="22" fill="#1a1a2e" font-weight="700">What happens, <tspan fill="#6b6bff">in what order</tspan>?</text>
+
+  <!-- Actor columns: x positions -->
+  <!-- User=80, App=220, Backend=380, Infrared=520, Claude=660, DB=790 -->
+
+  <!-- Actor headers -->
+  <rect x="40" y="76" width="80" height="30" rx="6" fill="#e8e8ff" stroke="#6b6bff" stroke-width="1.5"/>
+  <text x="80" y="96" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">User</text>
+
+  <rect x="180" y="76" width="80" height="30" rx="6" fill="#e8e8ff" stroke="#6b6bff" stroke-width="1.5"/>
+  <text x="220" y="96" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">App</text>
+
+  <rect x="340" y="76" width="80" height="30" rx="6" fill="#e8f4e8" stroke="#3da86e" stroke-width="1.5"/>
+  <text x="380" y="96" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Backend</text>
+
+  <rect x="478" y="76" width="84" height="30" rx="6" fill="#fff3e0" stroke="#ff9800" stroke-width="1.5"/>
+  <text x="520" y="96" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Infrared</text>
+
+  <rect x="618" y="76" width="84" height="30" rx="6" fill="#fce4ff" stroke="#b94dff" stroke-width="1.5"/>
+  <text x="660" y="96" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">Claude</text>
+
+  <rect x="758" y="76" width="64" height="30" rx="6" fill="#fff8e1" stroke="#ffc107" stroke-width="1.5"/>
+  <text x="790" y="96" text-anchor="middle" font-size="11" fill="#1a1a2e" font-weight="700">DB</text>
+
+  <!-- Lifelines -->
+  <line x1="80"  y1="106" x2="80"  y2="500" stroke="#c8c8e8" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="220" y1="106" x2="220" y2="500" stroke="#c8c8e8" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="380" y1="106" x2="380" y2="500" stroke="#c8c8e8" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="520" y1="106" x2="520" y2="500" stroke="#c8c8e8" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="660" y1="106" x2="660" y2="500" stroke="#c8c8e8" stroke-width="1" stroke-dasharray="4,3"/>
+  <line x1="790" y1="106" x2="790" y2="500" stroke="#c8c8e8" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- Steps -->
+  <!-- 1: User adds event -->
+  <line x1="80" y1="140" x2="212" y2="140" stroke="#6b6bff" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="148" y="132" text-anchor="middle" font-size="10" fill="#6b6bff">1. Add event (title, location, time)</text>
+
+  <!-- 2: App → Backend POST /api/events -->
+  <line x1="220" y1="168" x2="372" y2="168" stroke="#3da86e" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="298" y="160" text-anchor="middle" font-size="10" fill="#3da86e">2. POST /api/events</text>
+
+  <!-- 3: Backend geocodes (nominatim) -->
+  <rect x="355" y="182" width="50" height="16" rx="3" fill="#3da86e" opacity="0.15"/>
+  <text x="380" y="194" text-anchor="middle" font-size="9" fill="#2d7a4f">geocode</text>
+
+  <!-- 4: Backend saves to DB -->
+  <line x1="380" y1="210" x2="782" y2="210" stroke="#ffc107" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="582" y="202" text-anchor="middle" font-size="10" fill="#9a7200">3. Save bare event → weekly_plan.json</text>
+
+  <!-- 5: Backend → Infrared -->
+  <line x1="380" y1="248" x2="512" y2="248" stroke="#ff9800" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="448" y="240" text-anchor="middle" font-size="10" fill="#e65c00">4. Run UTCI simulation</text>
+
+  <!-- 6: Infrared → Backend result -->
+  <line x1="512" y1="272" x2="388" y2="272" stroke="#ff9800" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arb)"/>
+  <text x="450" y="264" text-anchor="middle" font-size="10" fill="#e65c00">UTCI grid + PNG overlay</text>
+
+  <!-- 7: Backend → Weather -->
+  <rect x="355" y="286" width="50" height="16" rx="3" fill="#1e88e5" opacity="0.15"/>
+  <text x="380" y="298" text-anchor="middle" font-size="9" fill="#1565c0">weather</text>
+  <text x="460" y="298" font-size="9" fill="#888">(Open-Meteo, not shown)</text>
+
+  <!-- 8: Backend → Claude -->
+  <line x1="380" y1="318" x2="652" y2="318" stroke="#b94dff" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="518" y="310" text-anchor="middle" font-size="10" fill="#7b2db0">5. UTCI + weather + events context</text>
+
+  <!-- 9: Claude → Backend -->
+  <line x1="652" y1="342" x2="388" y2="342" stroke="#b94dff" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arb)"/>
+  <text x="518" y="334" text-anchor="middle" font-size="10" fill="#7b2db0">clothing + wellness suggestions</text>
+
+  <!-- 10: Backend saves enriched -->
+  <line x1="380" y1="370" x2="782" y2="370" stroke="#ffc107" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="582" y="362" text-anchor="middle" font-size="10" fill="#9a7200">6. Write enriched event → weekly_plan.json</text>
+
+  <!-- 11: App polls GET /api/events -->
+  <line x1="220" y1="400" x2="372" y2="400" stroke="#3da86e" stroke-width="1.5" marker-end="url(#arb)"/>
+  <text x="298" y="392" text-anchor="middle" font-size="10" fill="#3da86e">7. GET /api/events (on focus / ↺)</text>
+
+  <!-- 12: Backend returns -->
+  <line x1="372" y1="424" x2="228" y2="424" stroke="#3da86e" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arb)"/>
+  <text x="298" y="416" text-anchor="middle" font-size="10" fill="#3da86e">enriched events JSON</text>
+
+  <!-- 13: App renders -->
+  <line x1="220" y1="452" x2="88" y2="452" stroke="#6b6bff" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arb)"/>
+  <text x="152" y="444" text-anchor="middle" font-size="10" fill="#6b6bff">8. UTCI pins + tips displayed</text>
+
+  <defs>
+    <marker id="arb" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#aaa"/>
+    </marker>
+  </defs>
+</svg>
