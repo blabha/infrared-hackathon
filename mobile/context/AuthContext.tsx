@@ -6,7 +6,8 @@ import { API_BASE } from '../constants/api';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_CLIENT_ID = '100317843416-i7t8hbs1uutdv1aruhmcbg2v4s2a946m.apps.googleusercontent.com';
+// Web application OAuth client — code exchange is done server-side
+const GOOGLE_CLIENT_ID = '100317843416-mn5tuvffq37g4ih2q37cvd8npfa3ff1o.apps.googleusercontent.com';
 
 const SCOPES = [
   'openid',
@@ -21,6 +22,9 @@ const DISCOVERY = {
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
   revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 };
+
+// Expo auth proxy — already registered in Google Cloud Console for this client
+const REDIRECT_URI = 'https://auth.expo.io/@bha03/climate-planner';
 
 type AuthState = {
   user_id: string | null;
@@ -46,15 +50,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
-
   const [, response, promptAsync] = AuthSession.useAuthRequest(
     {
       clientId: GOOGLE_CLIENT_ID,
-      redirectUri,
+      redirectUri: REDIRECT_URI,
       scopes: SCOPES,
-      responseType: AuthSession.ResponseType.Token,
-      extraParams: { access_type: 'offline' },
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: false,
+      extraParams: {
+        prompt: 'select_account',
+        access_type: 'offline',
+      },
     },
     DISCOVERY,
   );
@@ -73,16 +79,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // Handle OAuth response
+  // Send auth code to backend — backend holds the client secret and does the exchange
   useEffect(() => {
     if (response?.type !== 'success') return;
-    const access_token = (response.params as any).access_token as string | undefined;
-    if (!access_token) return;
+    const { code } = response.params;
+    if (!code) return;
 
-    fetch(`${API_BASE}/api/auth/google`, {
+    fetch(`${API_BASE}/api/auth/google/code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token, refresh_token: null }),
+      body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
     })
       .then(r => r.json())
       .then(async data => {
@@ -96,11 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ['name', data.name ?? ''],
         ]);
       })
-      .catch(e => console.error('[auth] google error:', e));
+      .catch(e => console.error('[auth] error:', e));
   }, [response]);
 
   const signIn = async () => {
-    await promptAsync({ useProxy: true });
+    await promptAsync();
   };
 
   const signOut = async () => {

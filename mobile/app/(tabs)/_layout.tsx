@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
   return (
@@ -8,12 +8,12 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: '#ffffff',
-          borderTopColor: '#d0e4f0',
+          borderTopColor: '#e8e8e8',
           paddingBottom: 6,
           height: 60,
         },
         tabBarActiveTintColor: '#0ea5e9',
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarInactiveTintColor: '#9ca3af',
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
@@ -21,21 +21,21 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Map',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>🗺️</Text>,
+          tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="events"
         options={{
           title: 'Events',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>📅</Text>,
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="health"
         options={{
           title: 'Health',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>💚</Text>,
+          tabBarIcon: ({ color, size }) => <Ionicons name="heart-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

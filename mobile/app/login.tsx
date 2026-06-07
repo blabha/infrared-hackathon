@@ -6,7 +6,6 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>🌡</Text>
       <Text style={styles.title}>Climate Planner</Text>
       <Text style={styles.sub}>
         Connect your Google Calendar to get personalised climate and wellness insights for every event.
@@ -24,20 +23,19 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, backgroundColor: '#f0f6fb',
+    flex: 1, backgroundColor: '#FFF7ED',
     justifyContent: 'center', alignItems: 'center', padding: 32,
   },
-  logo: { fontSize: 72, marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: '800', color: '#0f2535', marginBottom: 10 },
+  title: { fontSize: 28, fontWeight: '800', color: '#111827', marginBottom: 12 },
   sub: {
-    fontSize: 15, color: '#6b90a8', textAlign: 'center',
+    fontSize: 15, color: '#6b7280', textAlign: 'center',
     marginBottom: 44, lineHeight: 22,
   },
   btn: {
-    backgroundColor: '#0ea5e9', paddingHorizontal: 32, paddingVertical: 16,
-    borderRadius: 16, width: '100%', alignItems: 'center',
-    shadowColor: '#0ea5e9', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    backgroundColor: '#F97316', paddingHorizontal: 32, paddingVertical: 16,
+    borderRadius: 14, width: '100%', alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });

@@ -62,6 +62,11 @@ class GoogleAuthBody(BaseModel):
     refresh_token: str | None = None
 
 
+class GoogleCodeBody(BaseModel):
+    code:         str
+    redirect_uri: str
+
+
 class HealthProfile(BaseModel):
     gender:           str   | None = None
     cycle_day:        int   | None = None
@@ -151,6 +156,61 @@ def auth_google(body: GoogleAuthBody):
     }
     _user_token_file(user_id).write_text(json.dumps(token_data), encoding="utf-8")
     print(f"[auth] User {email} authenticated → user_id={user_id}")
+    return {"user_id": user_id, "email": email, "name": info.get("name", "")}
+
+
+@app.post("/api/auth/google/code")
+def auth_google_code(body: GoogleCodeBody):
+    client_id     = os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(status_code=500, detail="Google credentials not configured")
+
+    # Exchange authorisation code for tokens
+    token_r = _requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code":          body.code,
+            "client_id":     client_id,
+            "client_secret": client_secret,
+            "redirect_uri":  body.redirect_uri,
+            "grant_type":    "authorization_code",
+        },
+        timeout=10,
+    )
+    if not token_r.ok:
+        raise HTTPException(status_code=401, detail=f"Token exchange failed: {token_r.text}")
+    tokens = token_r.json()
+
+    access_token  = tokens.get("access_token", "")
+    refresh_token = tokens.get("refresh_token")
+
+    # Get user info
+    info_r = _requests.get(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10,
+    )
+    if not info_r.ok:
+        raise HTTPException(status_code=401, detail="Could not fetch user info")
+    info = info_r.json()
+
+    email   = info["email"]
+    user_id = hashlib.md5(email.encode()).hexdigest()
+
+    token_data = {
+        "token":         access_token,
+        "refresh_token": refresh_token,
+        "token_uri":     "https://oauth2.googleapis.com/token",
+        "client_id":     client_id,
+        "client_secret": client_secret,
+        "scopes": [
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.readonly",
+        ],
+    }
+    _user_token_file(user_id).write_text(json.dumps(token_data), encoding="utf-8")
+    print(f"[auth/code] {email} → user_id={user_id}")
     return {"user_id": user_id, "email": email, "name": info.get("name", "")}
 
 

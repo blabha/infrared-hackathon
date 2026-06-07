@@ -8,14 +8,14 @@ import { API_BASE } from '../../constants/api';
 
 const WORKOUT_TYPES = ['Running', 'Cycling', 'Swimming', 'Yoga', 'Gym', 'Walking', 'Pilates', 'Other'];
 
-function getCycleThermalInsight(daysSinceEnd: number): { message: string; color: string; bg: string } {
-  if (daysSinceEnd < 0)   return { color: '#94a3b8', bg: '#f8fafc', message: 'Future date entered — log your period end to unlock thermal wellness feedback.' };
-  if (daysSinceEnd <= 1)  return { color: '#ec4899', bg: '#fdf2f8', message: 'Period just ended — body temp is stabilising. Ease into outdoor activity and avoid prolonged heat exposure today.' };
-  if (daysSinceEnd <= 7)  return { color: '#3b82f6', bg: '#eff6ff', message: 'Follicular phase: rising oestrogen improves heat tolerance — your best window for outdoor workouts and warm environments.' };
-  if (daysSinceEnd <= 11) return { color: '#8b5cf6', bg: '#f5f3ff', message: 'Pre-ovulation: peak oestrogen with a mild temp uptick. Thermal comfort is still good — stay well hydrated outdoors.' };
-  if (daysSinceEnd <= 14) return { color: '#8b5cf6', bg: '#f5f3ff', message: 'Ovulation: basal body temp rises about 0.3 degrees. You may feel warmer outside — prefer cooler times of day for exercise.' };
-  if (daysSinceEnd <= 21) return { color: '#f59e0b', bg: '#fffbeb', message: 'Luteal phase: progesterone raises core temp 0.3–0.5 degrees — heat tolerance is reduced. Limit intense outdoor activity when UTCI > 32.' };
-  return                         { color: '#ef4444', bg: '#fef2f2', message: 'Late luteal (PMS window): fluid retention and high progesterone increase heat sensitivity. Seek shade, hydrate extra, and avoid peak-heat hours.' };
+// cycleDay is counted from period START (1 = first day of period)
+function getCycleThermalInsight(cycleDay: number): { message: string; color: string; bg: string } {
+  if (cycleDay < 1)    return { color: '#9ca3af', bg: '#f9fafb', message: 'Log your period start date to unlock thermal wellness feedback.' };
+  if (cycleDay <= 5)   return { color: '#ec4899', bg: '#fdf2f8', message: 'Your period is active — body temp is variable and energy may be lower. Ease into outdoor activity and avoid prolonged heat exposure.' };
+  if (cycleDay <= 13)  return { color: '#3b82f6', bg: '#eff6ff', message: 'Follicular phase: rising oestrogen improves heat tolerance — your best window for outdoor workouts and warm environments.' };
+  if (cycleDay <= 15)  return { color: '#8b5cf6', bg: '#f5f3ff', message: 'Ovulation: basal body temp rises about 0.3 degrees. You may feel warmer outside — prefer cooler times of day for exercise.' };
+  if (cycleDay <= 21)  return { color: '#f59e0b', bg: '#fffbeb', message: 'Luteal phase: progesterone raises core temp 0.3–0.5 degrees — heat tolerance is reduced. Limit intense outdoor activity when UTCI > 32.' };
+  return                      { color: '#ef4444', bg: '#fef2f2', message: 'Late luteal (PMS window): fluid retention and high progesterone increase heat sensitivity. Seek shade, hydrate extra, and avoid peak-heat hours.' };
 }
 
 export default function HealthScreen() {
@@ -52,7 +52,7 @@ export default function HealthScreen() {
 
   const PHASE_COLORS: Record<string, string> = {
     'Menstrual': '#ec4899', 'Follicular': '#3b82f6',
-    'Ovulatory': '#8b5cf6', 'Luteal': '#f59e0b',
+    'Ovulatory': '#8b5cf6', 'Luteal': '#f59e0b', 'Late Luteal': '#ef4444',
   };
 
   const recalcPhase = async () => {
@@ -68,22 +68,15 @@ export default function HealthScreen() {
         .reverse();
       if (starts.length) {
         const lastStart = new Date(starts[0]);
-        const cycleDay = Math.floor((today.getTime() - lastStart.getTime()) / 86400000) + 1;
-        let phase = 'Luteal';
+        const rawDay = Math.floor((today.getTime() - lastStart.getTime()) / 86400000) + 1;
+        const cycleDay = ((rawDay - 1) % 28) + 1;
+        let phase = 'Late Luteal';
         if (cycleDay <= 5) phase = 'Menstrual';
         else if (cycleDay <= 13) phase = 'Follicular';
         else if (cycleDay <= 15) phase = 'Ovulatory';
+        else if (cycleDay <= 21) phase = 'Luteal';
         setPhaseStatus({ day: cycleDay, phase, color: PHASE_COLORS[phase] ?? '#94a3b8' });
-      }
-
-      const ends: string[] = (logs.period || [])
-        .filter((e: any) => e.event === 'end')
-        .map((e: any) => e.date)
-        .sort()
-        .reverse();
-      if (ends.length) {
-        const daysSinceEnd = Math.floor((today.getTime() - new Date(ends[0]).getTime()) / 86400000);
-        setCycleInsight(getCycleThermalInsight(daysSinceEnd));
+        setCycleInsight(getCycleThermalInsight(cycleDay));
       }
     } catch {}
   };
@@ -169,7 +162,7 @@ export default function HealthScreen() {
         }),
       });
       Alert.alert('Logged', `Period ${event} added — ${targetDate}`);
-      if (event === 'end') recalcPhase();
+      recalcPhase();
     } catch {
       Alert.alert('Error', 'Could not log period.');
     } finally {
@@ -304,8 +297,9 @@ export default function HealthScreen() {
                 if (digits.length === 6) {
                   const entered = new Date(`20${digits.slice(4)}-${digits.slice(2,4)}-${digits.slice(0,2)}`);
                   if (!isNaN(entered.getTime())) {
-                    const days = Math.floor((Date.now() - entered.getTime()) / 86400000);
-                    setCycleInsight(getCycleThermalInsight(days));
+                    const rawDay = Math.floor((Date.now() - entered.getTime()) / 86400000) + 1;
+                    const cycleDay = ((rawDay - 1) % 28) + 1;
+                    setCycleInsight(getCycleThermalInsight(cycleDay));
                   }
                 }
               }}
@@ -341,58 +335,58 @@ export default function HealthScreen() {
 }
 
 const st = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f6fb' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f6fb' },
-  header: { padding: 20, paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#d0e4f0' },
-  title: { fontSize: 20, fontWeight: '700', color: '#0f2535' },
+  container: { flex: 1, backgroundColor: '#F5F3FF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F3FF' },
+  header: { padding: 20, paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e8e8e8' },
+  title: { fontSize: 20, fontWeight: '700', color: '#111827' },
   phaseBadge: { marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5 },
   phaseBadgeText: { fontSize: 13, fontWeight: '700' },
   content: { padding: 16, paddingBottom: 40 },
 
-  datebar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#d0e4f0' },
+  datebar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#e8e8e8' },
   dateArrow: { padding: 8 },
   dateArrowText: { fontSize: 24, color: '#0ea5e9', fontWeight: '400' },
-  dateLabel: { fontSize: 15, fontWeight: '700', color: '#0f2535', textAlign: 'center' },
+  dateLabel: { fontSize: 15, fontWeight: '700', color: '#111827', textAlign: 'center' },
   dateSub: { fontSize: 10, color: '#0ea5e9', textAlign: 'center', marginTop: 1 },
 
-  section: { fontSize: 13, fontWeight: '700', color: '#0f2535', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 24, marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#d0e4f0' },
-  label: { fontSize: 11, fontWeight: '700', color: '#6b90a8', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },
+  section: { fontSize: 13, fontWeight: '700', color: '#F97316', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 24, marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#FED7AA' },
+  label: { fontSize: 11, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 12, marginBottom: 6 },
 
-  input: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#d0e4f0', padding: 12, fontSize: 14, color: '#0f2535' },
+  input: { backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e8e8e8', padding: 12, fontSize: 14, color: '#111827' },
   textArea: { height: 80, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 10 },
   half: { flex: 1 },
 
   phaseGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  phaseCard: { flex: 1, minWidth: '45%', backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: '#d0e4f0' },
+  phaseCard: { flex: 1, minWidth: '45%', backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: '#e8e8e8' },
   phaseCardActive: { borderColor: '#0ea5e9', backgroundColor: '#f0f9ff' },
-  phaseLabel: { fontSize: 13, fontWeight: '700', color: '#0f2535', marginBottom: 2 },
+  phaseLabel: { fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 2 },
   phaseLabelActive: { color: '#0ea5e9' },
-  phaseDays: { fontSize: 11, color: '#6b90a8', marginBottom: 2 },
+  phaseDays: { fontSize: 11, color: '#6b7280', marginBottom: 2 },
   phaseDesc: { fontSize: 11, color: '#94a3b8' },
 
   chips: { flexDirection: 'row', gap: 8 },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#d0e4f0', backgroundColor: '#fff' },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#e8e8e8', backgroundColor: '#fff' },
   chipActive: { borderColor: '#0ea5e9', backgroundColor: '#f0f9ff' },
-  chipText: { fontSize: 13, color: '#6b90a8', fontWeight: '600' },
+  chipText: { fontSize: 13, color: '#6b7280', fontWeight: '600' },
   chipTextActive: { color: '#0ea5e9' },
 
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#d0e4f0', backgroundColor: '#fff' },
-  typeChipActive: { borderColor: '#22c55e', backgroundColor: '#f0fdf4' },
-  typeChipText: { fontSize: 13, color: '#6b90a8', fontWeight: '600' },
-  typeChipTextActive: { color: '#22c55e' },
+  typeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: '#e8e8e8', backgroundColor: '#fff' },
+  typeChipActive: { borderColor: '#F97316', backgroundColor: '#FFF7ED' },
+  typeChipText: { fontSize: 13, color: '#6b7280', fontWeight: '600' },
+  typeChipTextActive: { color: '#F97316' },
 
   weightRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  unitToggle: { flexDirection: 'row', borderRadius: 10, borderWidth: 1, borderColor: '#d0e4f0', overflow: 'hidden' },
+  unitToggle: { flexDirection: 'row', borderRadius: 10, borderWidth: 1, borderColor: '#e8e8e8', overflow: 'hidden' },
   unitBtn: { paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#fff' },
   unitBtnActive: { backgroundColor: '#0ea5e9' },
-  unitBtnText: { fontSize: 13, fontWeight: '600', color: '#6b90a8' },
+  unitBtnText: { fontSize: 13, fontWeight: '600', color: '#6b7280' },
   unitBtnTextActive: { color: '#fff' },
 
-  primaryBtn: { marginTop: 16, backgroundColor: '#0ea5e9', borderRadius: 12, padding: 14, alignItems: 'center' },
-  greenBtn:   { marginTop: 16, backgroundColor: '#22c55e', borderRadius: 12, padding: 14, alignItems: 'center' },
-  slateBtn:   { marginTop: 16, backgroundColor: '#64748b', borderRadius: 12, padding: 14, alignItems: 'center' },
+  primaryBtn: { marginTop: 16, backgroundColor: '#F97316', borderRadius: 12, padding: 14, alignItems: 'center' },
+  greenBtn:   { marginTop: 16, backgroundColor: '#F97316', borderRadius: 12, padding: 14, alignItems: 'center' },
+  slateBtn:   { marginTop: 16, backgroundColor: '#8B5CF6', borderRadius: 12, padding: 14, alignItems: 'center' },
   periodBtn:  { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
   hint: { fontSize: 11, color: '#94a3b8', marginTop: 4 },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },

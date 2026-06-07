@@ -64,6 +64,36 @@ const markerStyles = StyleSheet.create({
 
 const DEFAULT_REGION = { latitude: 41.3851, longitude: 2.1734, latitudeDelta: 0.12, longitudeDelta: 0.12 };
 
+const MAP_STYLE = [
+  // Land base — warm cream
+  { elementType: 'geometry',              stylers: [{ color: '#FFF8F5' }] },
+  // Text
+  { elementType: 'labels.text.fill',      stylers: [{ color: '#6B7280' }] },
+  { elementType: 'labels.text.stroke',    stylers: [{ color: '#FFFFFF' }] },
+  // Water — sky blue
+  { featureType: 'water', elementType: 'geometry',          stylers: [{ color: '#BAE6FD' }] },
+  { featureType: 'water', elementType: 'labels.text.fill',  stylers: [{ color: '#0EA5E9' }] },
+  // Roads — white with very light stroke
+  { featureType: 'road',          elementType: 'geometry',        stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'road',          elementType: 'geometry.stroke',  stylers: [{ color: '#E5E7EB' }] },
+  // Highways — light orange tint to match palette
+  { featureType: 'road.highway',  elementType: 'geometry',        stylers: [{ color: '#FED7AA' }] },
+  { featureType: 'road.highway',  elementType: 'geometry.stroke',  stylers: [{ color: '#FDBA74' }] },
+  // Parks — very light sage
+  { featureType: 'poi.park', elementType: 'geometry',          stylers: [{ color: '#D1FAE5' }] },
+  { featureType: 'poi.park', elementType: 'labels.text.fill',  stylers: [{ color: '#9CA3AF' }] },
+  // Hide noisy POI icons and transit
+  { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi',          elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit',      stylers: [{ visibility: 'off' }] },
+  // Admin borders
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#E5E7EB' }] },
+  // Buildings — barely there
+  { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#F3F4F6' }] },
+  // Natural landscape — faint sky tint
+  { featureType: 'landscape.natural',  elementType: 'geometry', stylers: [{ color: '#EFF8FF' }] },
+];
+
 type Coord = { latitude: number; longitude: number };
 type EventItem = Record<string, any>;
 type Selected = { ev: EventItem; idx: number };
@@ -180,7 +210,7 @@ export default function MapScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>🌡 Climate Planner</Text>
+        <Text style={styles.title}>Climate Planner</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.refreshBtn} onPress={() => loadEvents()}>
             <Text style={styles.refreshBtnText}>↺</Text>
@@ -217,7 +247,7 @@ export default function MapScreen() {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation>
+          <MapView ref={mapRef} style={styles.map} region={region} showsUserLocation customMapStyle={MAP_STYLE} showsTraffic={false} showsPointsOfInterest={false}>
 
             {/* UTCI heatmap overlay */}
             {events.map((ev, i) => {
@@ -347,33 +377,33 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f6fb' },
+  container: { flex: 1, backgroundColor: '#EFF8FF' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 12,
-    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#d0e4f0',
+    backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e8e8e8',
   },
-  title: { fontSize: 17, fontWeight: '700', color: '#0f2535' },
+  title: { fontSize: 17, fontWeight: '700', color: '#111827' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  refreshBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f0f6fb', borderWidth: 1, borderColor: '#d0e4f0', justifyContent: 'center', alignItems: 'center' },
+  refreshBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8', justifyContent: 'center', alignItems: 'center' },
   refreshBtnText: { fontSize: 18, color: '#0ea5e9', lineHeight: 22 },
-  addBtn: { backgroundColor: '#0ea5e9', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
+  addBtn: { backgroundColor: '#F97316', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  filterBar: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#d0e4f0', maxHeight: 50 },
+  filterBar: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e8e8e8', maxHeight: 50 },
   filterContent: { paddingHorizontal: 12, paddingVertical: 9, gap: 8, flexDirection: 'row' },
   pill: {
     paddingHorizontal: 14, paddingVertical: 5, borderRadius: 16,
-    backgroundColor: '#f0f6fb', borderWidth: 1, borderColor: '#d0e4f0',
+    backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8',
   },
   pillActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
-  pillText: { fontSize: 12, fontWeight: '600', color: '#6b90a8' },
+  pillText: { fontSize: 12, fontWeight: '600', color: '#6b7280' },
   pillTextActive: { color: '#fff' },
   map: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: '#6b90a8', fontSize: 14 },
+  loadingText: { color: '#6b7280', fontSize: 14 },
   callout: { padding: 8, minWidth: 160, maxWidth: 220 },
-  calloutTitle: { fontSize: 13, fontWeight: '700', color: '#0f2535', marginBottom: 3 },
-  calloutTime: { fontSize: 11, color: '#6b90a8', marginBottom: 3 },
+  calloutTitle: { fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 3 },
+  calloutTime: { fontSize: 11, color: '#6b7280', marginBottom: 3 },
   calloutUtci: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
   calloutEdit: { fontSize: 11, color: '#0ea5e9' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
@@ -381,18 +411,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22,
     padding: 24, gap: 10,
   },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#0f2535', marginBottom: 4 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: '#6b90a8', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  fieldLabel: { fontSize: 11, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
-    backgroundColor: '#f0f6fb', borderRadius: 10, borderWidth: 1,
-    borderColor: '#d0e4f0', padding: 12, fontSize: 14, color: '#0f2535',
+    backgroundColor: '#fafafa', borderRadius: 10, borderWidth: 1,
+    borderColor: '#e8e8e8', padding: 12, fontSize: 14, color: '#111827',
   },
   row: { flexDirection: 'row', gap: 12, marginTop: 4 },
   btn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
   btnPrimary: { backgroundColor: '#0ea5e9' },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  btnSecondary: { backgroundColor: '#f0f6fb', borderWidth: 1, borderColor: '#d0e4f0' },
-  btnSecondaryText: { color: '#6b90a8', fontWeight: '600', fontSize: 15 },
+  btnSecondary: { backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8' },
+  btnSecondaryText: { color: '#6b7280', fontWeight: '600', fontSize: 15 },
   legend: {
     position: 'absolute', bottom: 24, left: 12,
     backgroundColor: 'rgba(255,255,255,0.93)', borderRadius: 10,
@@ -400,8 +430,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
     elevation: 4,
   },
-  legendTitle: { fontSize: 9, fontWeight: '800', color: '#6b90a8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
+  legendTitle: { fontSize: 9, fontWeight: '800', color: '#6b7280', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { fontSize: 11, color: '#0f2535', fontWeight: '500' },
+  legendLabel: { fontSize: 11, color: '#111827', fontWeight: '500' },
 });
