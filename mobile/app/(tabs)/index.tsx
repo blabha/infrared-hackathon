@@ -25,7 +25,8 @@ function utciColor(v: number | null) {
 
 function fmtShort(iso: string) {
   try {
-    return new Date(iso).toLocaleString('en-GB', {
+    const str = iso?.length === 10 ? iso + 'T00:00:00' : iso;
+    return new Date(str).toLocaleString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short',
       hour: '2-digit', minute: '2-digit',
     });
@@ -159,7 +160,8 @@ export default function MapScreen() {
     if (!coords[i]) return false;
     if (selectedDay === 'All') return true;
     try {
-      const day = new Date(ev.time).toLocaleDateString('en-US', { weekday: 'short' });
+      const timeStr = ev.time?.length === 10 ? ev.time + 'T00:00:00' : ev.time;
+      const day = new Date(timeStr).toLocaleDateString('en-US', { weekday: 'short' });
       return day === selectedDay;
     } catch { return false; }
   };
