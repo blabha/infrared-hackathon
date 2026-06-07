@@ -19,10 +19,10 @@ function AuthGate() {
     const screen = segments[0] as string | undefined;
     const inLogin      = screen === 'login';
     const inOnboarding = screen === 'onboarding';
-    const inTabs       = screen === '(tabs)';
+    const inCallback   = screen === 'auth-callback';
 
     if (!user_id) {
-      if (!inLogin) router.replace('/login');
+      if (!inLogin && !inCallback) router.replace('/login');
       return;
     }
     // Authenticated

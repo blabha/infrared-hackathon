@@ -233,7 +233,7 @@ def auth_google_callback(code: str = "", error: str = ""):
         "email":   email,
         "name":    info.get("name", ""),
     })
-    return RedirectResponse(f"climateplanner://auth?{qs}")
+    return RedirectResponse(f"climateplanner://auth-callback?{qs}")
 
 
 @app.get("/api/events")
