@@ -1,9 +1,11 @@
+import hashlib
 import json
 import os
 import threading
 import traceback
 import urllib.request
 import urllib.parse
+import requests as _requests
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -55,6 +57,11 @@ class NewEvent(BaseModel):
     location: str | None = None
 
 
+class GoogleAuthBody(BaseModel):
+    access_token:  str
+    refresh_token: str | None = None
+
+
 class HealthProfile(BaseModel):
     gender:           str   | None = None
     cycle_day:        int   | None = None
@@ -78,8 +85,17 @@ def health_check():
 BACKUP_FILE = OUTPUT_DIR / "weekly_plan.backup.json"
 
 
-def _read_plan() -> list:
-    for f in [PLAN_FILE, BACKUP_FILE]:
+def _plan_file(user_id: str = "") -> tuple[Path, Path]:
+    if user_id:
+        d = OUTPUT_DIR / "users" / user_id
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "weekly_plan.json", d / "weekly_plan.backup.json"
+    return PLAN_FILE, BACKUP_FILE
+
+
+def _read_plan(user_id: str = "") -> list:
+    main, backup = _plan_file(user_id)
+    for f in [main, backup]:
         try:
             if not f.exists():
                 continue
@@ -94,17 +110,53 @@ def _read_plan() -> list:
     return []
 
 
-def _write_plan(data: list):
+def _write_plan(data: list, user_id: str = ""):
     if not data:
         return
+    main, backup = _plan_file(user_id)
     text = json.dumps(data, indent=2, ensure_ascii=False)
-    PLAN_FILE.write_text(text, encoding='utf-8')
-    BACKUP_FILE.write_text(text, encoding='utf-8')
+    main.write_text(text, encoding='utf-8')
+    backup.write_text(text, encoding='utf-8')
+
+
+def _user_token_file(user_id: str) -> Path:
+    d = DATA_DIR / "users" / user_id
+    d.mkdir(parents=True, exist_ok=True)
+    return d / "token.json"
+
+
+@app.post("/api/auth/google")
+def auth_google(body: GoogleAuthBody):
+    r = _requests.get(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        headers={"Authorization": f"Bearer {body.access_token}"},
+        timeout=10,
+    )
+    if not r.ok:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    info = r.json()
+    email = info["email"]
+    user_id = hashlib.md5(email.encode()).hexdigest()
+
+    token_data = {
+        "token": body.access_token,
+        "refresh_token": body.refresh_token,
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "client_id": os.getenv("GOOGLE_CLIENT_ID", ""),
+        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET", ""),
+        "scopes": [
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.readonly",
+        ],
+    }
+    _user_token_file(user_id).write_text(json.dumps(token_data), encoding="utf-8")
+    print(f"[auth] User {email} authenticated → user_id={user_id}")
+    return {"user_id": user_id, "email": email, "name": info.get("name", "")}
 
 
 @app.get("/api/events")
-def get_events():
-    return JSONResponse(_read_plan())
+def get_events(user_id: str = ""):
+    return JSONResponse(_read_plan(user_id=user_id))
 
 
 @app.delete("/api/events/{idx}")
@@ -382,7 +434,7 @@ def enrich_pending():
 
 
 @app.post("/api/run")
-def run_pipeline():
+def run_pipeline(user_id: str = ""):
     """Trigger the full pipeline: Calendar -> Infrared -> Weather -> Claude."""
     import traceback as _tb
     step = "import"
@@ -393,7 +445,8 @@ def run_pipeline():
         from modules.claude_planner import get_weekly_suggestions
 
         step = "calendar"
-        events   = get_weekly_events()
+        token_file = str(_user_token_file(user_id)) if user_id else None
+        events   = get_weekly_events(token_file=token_file)
         step = "infrared"
         enriched = get_climate_for_events(events)
         step = "weather"
@@ -402,7 +455,7 @@ def run_pipeline():
         final    = get_weekly_suggestions(enriched)
 
         if final:
-            _write_plan(final)
+            _write_plan(final, user_id=user_id)
         return JSONResponse({"status": "ok", "events": len(final)})
     except BaseException as e:
         detail = f"Pipeline failed at step '{step}': {type(e).__name__}: {e}"

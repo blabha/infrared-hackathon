@@ -28,26 +28,29 @@ def _classify_event(title: str) -> dict:
     }
 
 
-def _get_credentials():
-    # On Railway (no filesystem persistence for secrets): bootstrap from env vars
-    token_env = os.getenv("GOOGLE_TOKEN_JSON")
-    if token_env and not os.path.exists(TOKEN_FILE):
-        from pathlib import Path
-        Path(TOKEN_FILE).write_text(token_env, encoding="utf-8")
+def _get_credentials(token_file: str | None = None):
+    effective_token = token_file or TOKEN_FILE
 
-    secret_env = os.getenv("GOOGLE_CLIENT_SECRET_JSON")
-    if secret_env and not os.path.exists(CREDENTIALS_FILE):
-        from pathlib import Path
-        Path(CREDENTIALS_FILE).write_text(secret_env, encoding="utf-8")
+    # On Railway: bootstrap default token from env var if file missing
+    if not token_file:
+        token_env = os.getenv("GOOGLE_TOKEN_JSON")
+        if token_env and not os.path.exists(TOKEN_FILE):
+            from pathlib import Path
+            Path(TOKEN_FILE).write_text(token_env, encoding="utf-8")
+
+        secret_env = os.getenv("GOOGLE_CLIENT_SECRET_JSON")
+        if secret_env and not os.path.exists(CREDENTIALS_FILE):
+            from pathlib import Path
+            Path(CREDENTIALS_FILE).write_text(secret_env, encoding="utf-8")
 
     creds = None
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+    if os.path.exists(effective_token):
+        creds = Credentials.from_authorized_user_file(effective_token, SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            with open(TOKEN_FILE, "w") as f:
+            with open(effective_token, "w") as f:
                 f.write(creds.to_json())
         else:
             if not os.path.exists(CREDENTIALS_FILE):
@@ -57,7 +60,7 @@ def _get_credentials():
                 )
             flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
             creds = flow.run_local_server(port=8080)
-            with open(TOKEN_FILE, "w") as f:
+            with open(effective_token, "w") as f:
                 f.write(creds.to_json())
 
     return creds
@@ -79,9 +82,9 @@ def _upcoming_week() -> tuple[datetime, datetime]:
     return start, end
 
 
-def get_weekly_events() -> list[dict]:
+def get_weekly_events(token_file: str | None = None) -> list[dict]:
     """Fetch events for the upcoming Mon–Sun week from ALL calendars."""
-    creds = _get_credentials()
+    creds = _get_credentials(token_file=token_file)
     service = build("calendar", "v3", credentials=creds)
 
     week_start, week_end = _upcoming_week()
