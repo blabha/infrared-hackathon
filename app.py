@@ -159,42 +159,58 @@ def auth_google(body: GoogleAuthBody):
     return {"user_id": user_id, "email": email, "name": info.get("name", "")}
 
 
-@app.post("/api/auth/google/code")
-def auth_google_code(body: GoogleCodeBody):
+@app.get("/api/auth/google/start")
+def auth_google_start():
+    from fastapi.responses import RedirectResponse
+    client_id    = os.getenv("GOOGLE_CLIENT_ID", "")
+    callback_url = os.getenv("GOOGLE_CALLBACK_URL", "")
+    params = urllib.parse.urlencode({
+        "client_id":     client_id,
+        "redirect_uri":  callback_url,
+        "response_type": "code",
+        "scope":         "openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
+        "access_type":   "offline",
+        "prompt":        "select_account",
+    })
+    return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{params}")
+
+
+@app.get("/api/auth/google/callback")
+def auth_google_callback(code: str = "", error: str = ""):
+    from fastapi.responses import RedirectResponse
+    if error or not code:
+        return RedirectResponse(f"climateplanner://auth?error={urllib.parse.quote(error or 'cancelled')}")
+
     client_id     = os.getenv("GOOGLE_CLIENT_ID", "")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
-    if not client_id or not client_secret:
-        raise HTTPException(status_code=500, detail="Google credentials not configured")
+    callback_url  = os.getenv("GOOGLE_CALLBACK_URL", "")
 
-    # Exchange authorisation code for tokens
     token_r = _requests.post(
         "https://oauth2.googleapis.com/token",
         data={
-            "code":          body.code,
+            "code":          code,
             "client_id":     client_id,
             "client_secret": client_secret,
-            "redirect_uri":  body.redirect_uri,
+            "redirect_uri":  callback_url,
             "grant_type":    "authorization_code",
         },
         timeout=10,
     )
     if not token_r.ok:
-        raise HTTPException(status_code=401, detail=f"Token exchange failed: {token_r.text}")
+        return RedirectResponse(f"climateplanner://auth?error=token_exchange_failed")
     tokens = token_r.json()
 
     access_token  = tokens.get("access_token", "")
     refresh_token = tokens.get("refresh_token")
 
-    # Get user info
     info_r = _requests.get(
         "https://www.googleapis.com/oauth2/v3/userinfo",
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=10,
     )
     if not info_r.ok:
-        raise HTTPException(status_code=401, detail="Could not fetch user info")
-    info = info_r.json()
-
+        return RedirectResponse(f"climateplanner://auth?error=userinfo_failed")
+    info    = info_r.json()
     email   = info["email"]
     user_id = hashlib.md5(email.encode()).hexdigest()
 
@@ -210,8 +226,14 @@ def auth_google_code(body: GoogleCodeBody):
         ],
     }
     _user_token_file(user_id).write_text(json.dumps(token_data), encoding="utf-8")
-    print(f"[auth/code] {email} → user_id={user_id}")
-    return {"user_id": user_id, "email": email, "name": info.get("name", "")}
+    print(f"[auth/callback] {email} → user_id={user_id}")
+
+    qs = urllib.parse.urlencode({
+        "user_id": user_id,
+        "email":   email,
+        "name":    info.get("name", ""),
+    })
+    return RedirectResponse(f"climateplanner://auth?{qs}")
 
 
 @app.get("/api/events")
