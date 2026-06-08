@@ -1,11 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
   TextInput, Alert, ScrollView, ActivityIndicator,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
-import MapView, { Marker, Callout, Overlay } from 'react-native-maps';
+import WebView from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_BASE } from '../../constants/api';
 import { useAuth } from '../../context/AuthContext';
@@ -19,12 +19,12 @@ const UTCI_BANDS = [
   { max: Infinity, color: '#C80000', label: 'Extreme heat' },
 ];
 
-function utciColor(v: number | null) {
+function utciColor(v: number | null): string {
   if (v == null) return '#94a3b8';
   return (UTCI_BANDS.find(b => v < b.max) ?? UTCI_BANDS.at(-1)!).color;
 }
 
-function fmtShort(iso: string) {
+function fmtShort(iso: string): string {
   try {
     const str = iso?.length === 10 ? iso + 'T00:00:00' : iso;
     return new Date(str).toLocaleString('en-GB', {
@@ -36,115 +36,142 @@ function fmtShort(iso: string) {
 
 const DAYS = ['All', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-function UtciMarker({ utci }: { utci: number | null }) {
-  const color = utciColor(utci);
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <View style={[markerStyles.circle, { borderColor: color, backgroundColor: color + '33' }]}>
-        <Text style={[markerStyles.label, { color }]}>
-          {utci != null ? `${Math.round(utci)}°` : '?'}
-        </Text>
-      </View>
-      <View style={[markerStyles.pin, { borderTopColor: color }]} />
-    </View>
-  );
-}
-
-const markerStyles = StyleSheet.create({
-  circle: {
-    width: 48, height: 48, borderRadius: 24,
-    borderWidth: 2.5,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  label: { fontSize: 11, fontWeight: '800' },
-  pin: {
-    width: 0, height: 0,
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
-    borderLeftColor: 'transparent', borderRightColor: 'transparent',
-  },
-});
-
-const DEFAULT_REGION = { latitude: 41.3851, longitude: 2.1734, latitudeDelta: 0.12, longitudeDelta: 0.12 };
-
-const MAP_STYLE = [
-  // Land base — warm cream
-  { elementType: 'geometry',              stylers: [{ color: '#FFF8F5' }] },
-  // Text
-  { elementType: 'labels.text.fill',      stylers: [{ color: '#6B7280' }] },
-  { elementType: 'labels.text.stroke',    stylers: [{ color: '#FFFFFF' }] },
-  // Water — sky blue
-  { featureType: 'water', elementType: 'geometry',          stylers: [{ color: '#BAE6FD' }] },
-  { featureType: 'water', elementType: 'labels.text.fill',  stylers: [{ color: '#0EA5E9' }] },
-  // Roads — white with very light stroke
-  { featureType: 'road',          elementType: 'geometry',        stylers: [{ color: '#FFFFFF' }] },
-  { featureType: 'road',          elementType: 'geometry.stroke',  stylers: [{ color: '#E5E7EB' }] },
-  // Highways — light orange tint to match palette
-  { featureType: 'road.highway',  elementType: 'geometry',        stylers: [{ color: '#FED7AA' }] },
-  { featureType: 'road.highway',  elementType: 'geometry.stroke',  stylers: [{ color: '#FDBA74' }] },
-  // Parks — very light sage
-  { featureType: 'poi.park', elementType: 'geometry',          stylers: [{ color: '#D1FAE5' }] },
-  { featureType: 'poi.park', elementType: 'labels.text.fill',  stylers: [{ color: '#9CA3AF' }] },
-  // Hide noisy POI icons and transit
-  { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi',          elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',      stylers: [{ visibility: 'off' }] },
-  // Admin borders
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#E5E7EB' }] },
-  // Buildings — barely there
-  { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#F3F4F6' }] },
-  // Natural landscape — faint sky tint
-  { featureType: 'landscape.natural',  elementType: 'geometry', stylers: [{ color: '#EFF8FF' }] },
-];
-
 type Coord = { latitude: number; longitude: number };
 type EventItem = Record<string, any>;
 type Selected = { ev: EventItem; idx: number };
 
+function buildLeafletHTML(
+  events: EventItem[],
+  coords: Record<number, Coord>,
+  selectedDay: string,
+  apiBase: string,
+): string {
+  const visible = events
+    .map((ev, i) => ({ ev, i, coord: coords[i] }))
+    .filter(({ ev, i, coord }) => {
+      if (!coord) return false;
+      if (selectedDay === 'All') return true;
+      try {
+        const t = ev.time?.length === 10 ? ev.time + 'T00:00:00' : ev.time;
+        return new Date(t).toLocaleDateString('en-US', { weekday: 'short' }) === selectedDay;
+      } catch { return false; }
+    });
+
+  const markersPayload = visible.map(({ ev, i, coord }) => ({
+    idx: i,
+    lat: coord.latitude,
+    lng: coord.longitude,
+    title: ev.title ?? 'Event',
+    time: fmtShort(ev.time ?? ''),
+    utci: ev.climate?.thermal_comfort_utci_c?.mean ?? null,
+    color: utciColor(ev.climate?.thermal_comfort_utci_c?.mean ?? null),
+  }));
+
+  const overlaysPayload = events
+    .map((ev) => {
+      const ov = ev.climate?.utci_overlay;
+      if (!ov?.png_url || !ov?.bounds) return null;
+      const [[s, w], [n, e]] = ov.bounds;
+      return { url: `${apiBase}${ov.png_url}`, bounds: [[s, w], [n, e]] };
+    })
+    .filter(Boolean);
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#map{width:100%;height:100%}
+.leaflet-popup-content-wrapper{border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.18)}
+.leaflet-popup-content{margin:12px 14px}
+.leaflet-popup-tip-container{display:none}
+.edit-btn{background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;width:100%;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+var map = L.map('map',{zoomControl:true}).setView([41.3851,2.1734],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19,
+  attribution:'&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+var overlays=${JSON.stringify(overlaysPayload)};
+overlays.forEach(function(o){if(o)L.imageOverlay(o.url,o.bounds,{opacity:0.65}).addTo(map);});
+
+var markers=${JSON.stringify(markersPayload)};
+var bounds=[];
+markers.forEach(function(m){
+  bounds.push([m.lat,m.lng]);
+  var lbl=m.utci!=null?Math.round(m.utci)+'°':'?';
+  var icon=L.divIcon({
+    html:'<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none">'
+        +'<div style="width:44px;height:44px;border-radius:22px;border:2.5px solid '+m.color
+        +';background:'+m.color+'22;display:flex;align-items:center;justify-content:center'
+        +';font-size:11px;font-weight:800;color:'+m.color+'">'+lbl+'</div>'
+        +'<div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent'
+        +';border-top:8px solid '+m.color+'"></div></div>',
+    className:'',iconAnchor:[22,52],popupAnchor:[0,-56]
+  });
+  var utciRow=m.utci!=null
+    ?'<div style="font-size:12px;font-weight:700;color:'+m.color+';margin-bottom:4px">UTCI '+m.utci.toFixed(1)+'</div>'
+    :'';
+  var popup='<div style="min-width:160px">'
+    +'<div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:3px">'+m.title+'</div>'
+    +'<div style="font-size:11px;color:#6b7280;margin-bottom:4px">'+m.time+'</div>'
+    +utciRow
+    +'<button class="edit-btn" onclick="window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:\'edit\',idx:'+m.idx+'}))">'
+    +'Edit →</button></div>';
+  L.marker([m.lat,m.lng],{icon:icon}).addTo(map).bindPopup(popup,{maxWidth:240});
+});
+if(bounds.length>1) map.fitBounds(bounds,{padding:[50,50]});
+else if(bounds.length===1) map.setView(bounds[0],14);
+</script>
+</body>
+</html>`;
+}
+
 export default function MapScreen() {
   const { user_id } = useAuth();
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [coords, setCoords] = useState<Record<number, Coord>>({});
-  const region = DEFAULT_REGION;
+  const [events, setEvents]     = useState<EventItem[]>([]);
+  const [coords, setCoords]     = useState<Record<number, Coord>>({});
   const [selectedDay, setSelectedDay] = useState('All');
   const [selected, setSelected] = useState<Selected | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [editTitle, setEditTitle] = useState('');
-  const [editTime, setEditTime] = useState('');
+  const [showAdd, setShowAdd]   = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [editTitle, setEditTitle]     = useState('');
+  const [editTime, setEditTime]       = useState('');
   const [editLocation, setEditLocation] = useState('');
-  const [editNotes, setEditNotes] = useState('');
-  const [editSaving, setEditSaving] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newTime, setNewTime] = useState('');
+  const [editNotes, setEditNotes]     = useState('');
+  const [editSaving, setEditSaving]   = useState(false);
+  const [newTitle, setNewTitle]       = useState('');
+  const [newTime, setNewTime]         = useState('');
   const [newLocation, setNewLocation] = useState('');
-  const mapRef = useRef<MapView>(null);
+  const webRef = useRef<WebView>(null);
+
+  const leafletHTML = useMemo(
+    () => buildLeafletHTML(events, coords, selectedDay, API_BASE),
+    [events, coords, selectedDay],
+  );
 
   const loadEvents = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/events${user_id ? `?user_id=${user_id}` : ''}`);
+      const res  = await fetch(`${API_BASE}/api/events${user_id ? `?user_id=${user_id}` : ''}`);
       const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('Events response is not an array');
+      if (!Array.isArray(data)) throw new Error('not array');
       setEvents(data);
       const instant: Record<number, Coord> = {};
       data.forEach((ev: EventItem, i: number) => {
-        if (ev.climate?.lat != null && ev.climate?.lon != null) {
+        if (ev.climate?.lat != null && ev.climate?.lon != null)
           instant[i] = { latitude: ev.climate.lat, longitude: ev.climate.lon };
-        }
       });
       setCoords(instant);
       geocodeFallback(data, instant);
-
-      // Auto-fit map to show all enriched markers
-      const allCoords = Object.values(instant);
-      if (allCoords.length > 0) {
-        setTimeout(() => {
-          mapRef.current?.fitToCoordinates(allCoords, {
-            edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
-            animated: true,
-          });
-        }, 400);
-      }
     } catch (e) {
       console.error('loadEvents failed:', e);
     } finally {
@@ -163,7 +190,7 @@ export default function MapScreen() {
       if (!loc) continue;
       try {
         const res = await fetch(`${API_BASE}/api/geocode?address=${encodeURIComponent(loc)}`);
-        const d = await res.json();
+        const d   = await res.json();
         if (d.lat != null && d.lng != null) {
           setCoords(prev => ({ ...prev, [i]: { latitude: d.lat, longitude: d.lng } }));
           needsEnrich.push(i);
@@ -171,7 +198,6 @@ export default function MapScreen() {
       } catch {}
       await new Promise(r => setTimeout(r, 1100));
     }
-    // Trigger UTCI enrichment for events whose address just resolved
     if (needsEnrich.length > 0) {
       fetch(`${API_BASE}/api/enrich${user_id ? `?user_id=${user_id}` : ''}`, {
         method: 'POST',
@@ -181,14 +207,20 @@ export default function MapScreen() {
     }
   };
 
-  const isVisible = (ev: EventItem, i: number) => {
-    if (!coords[i]) return false;
-    if (selectedDay === 'All') return true;
+  const handleWebMessage = (event: any) => {
     try {
-      const timeStr = ev.time?.length === 10 ? ev.time + 'T00:00:00' : ev.time;
-      const day = new Date(timeStr).toLocaleDateString('en-US', { weekday: 'short' });
-      return day === selectedDay;
-    } catch { return false; }
+      const msg = JSON.parse(event.nativeEvent.data);
+      if (msg.type === 'edit' && events[msg.idx]) {
+        const ev = events[msg.idx];
+        setTimeout(() => {
+          setEditTitle(ev.title ?? '');
+          setEditTime(ev.time ?? '');
+          setEditLocation(ev.location ?? '');
+          setEditNotes(ev.notes ?? '');
+          setSelected({ ev, idx: msg.idx });
+        }, 50);
+      }
+    } catch {}
   };
 
   const openEdit = (ev: EventItem, idx: number) => {
@@ -212,7 +244,7 @@ export default function MapScreen() {
           title:    editTitle,
           time:     editTime,
           location: editLocation || null,
-          notes:    editNotes || null,
+          notes:    editNotes    || null,
         }),
       });
       setSelected(null);
@@ -284,46 +316,19 @@ export default function MapScreen() {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          <MapView ref={mapRef} style={styles.map} initialRegion={region} showsUserLocation customMapStyle={MAP_STYLE} showsTraffic={false} showsPointsOfInterest={false}>
+          <WebView
+            ref={webRef}
+            source={{ html: leafletHTML }}
+            style={styles.map}
+            onMessage={handleWebMessage}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            domStorageEnabled
+            mixedContentMode="always"
+            allowFileAccess
+          />
 
-            {/* UTCI heatmap overlay */}
-            {events.map((ev, i) => {
-              const ov = ev.climate?.utci_overlay;
-              if (!ov?.png_url || !ov?.bounds) return null;
-              const [[s, w], [n, e]] = ov.bounds;
-              return (
-                <Overlay
-                  key={`o-${i}`}
-                  image={{ uri: `${API_BASE}${ov.png_url}` }}
-                  bounds={[[s, w], [n, e]]}
-                  opacity={0.65}
-                />
-              );
-            })}
-            {events.map((ev, i) => {
-              if (!isVisible(ev, i)) return null;
-              const utci = ev.climate?.thermal_comfort_utci_c?.mean ?? null;
-              const color = utciColor(utci);
-              return (
-                <Marker key={`m-${i}`} coordinate={coords[i]} tracksViewChanges={false}>
-                  <UtciMarker utci={utci} />
-                  <Callout onPress={() => openEdit(ev, i)}>
-                    <View style={styles.callout}>
-                      <Text style={styles.calloutTitle}>{ev.title}</Text>
-                      <Text style={styles.calloutTime}>{fmtShort(ev.time)}</Text>
-                      {utci != null && (
-                        <Text style={[styles.calloutUtci, { color }]}>
-                          UTCI {utci.toFixed(1)}
-                        </Text>
-                      )}
-                      <Text style={styles.calloutEdit}>Tap to edit →</Text>
-                    </View>
-                  </Callout>
-                </Marker>
-              );
-            })}
-          </MapView>
-
+          {/* UTCI legend */}
           <View style={styles.legend}>
             <Text style={styles.legendTitle}>UTCI</Text>
             {UTCI_BANDS.map(b => (
@@ -338,10 +343,7 @@ export default function MapScreen() {
 
       {/* Edit modal */}
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.overlay}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Edit Event</Text>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -394,8 +396,7 @@ export default function MapScreen() {
                 <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveEdit} disabled={editSaving}>
                   {editSaving
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={styles.btnPrimaryText}>Save</Text>
-                  }
+                    : <Text style={styles.btnPrimaryText}>Save</Text>}
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -416,23 +417,23 @@ export default function MapScreen() {
               placeholder="Morning run"
               placeholderTextColor="#94a3b8"
             />
-            <Text style={styles.fieldLabel}>Time (ISO)</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Date & Time</Text>
             <TextInput
               style={styles.input}
               value={newTime}
               onChangeText={setNewTime}
-              placeholder="2025-06-02T07:00:00"
+              placeholder="2025-06-12T07:00:00"
               placeholderTextColor="#94a3b8"
             />
-            <Text style={styles.fieldLabel}>Location (optional)</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Location (optional)</Text>
             <TextInput
               style={styles.input}
               value={newLocation}
               onChangeText={setNewLocation}
-              placeholder="Cubbon Park, Bengaluru"
+              placeholder="Barceloneta Beach, Barcelona"
               placeholderTextColor="#94a3b8"
             />
-            <View style={styles.row}>
+            <View style={[styles.row, { marginTop: 16 }]}>
               <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={() => setShowAdd(false)}>
                 <Text style={styles.btnSecondaryText}>Cancel</Text>
               </TouchableOpacity>
@@ -448,53 +449,49 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EFF8FF' },
+  container:  { flex: 1, backgroundColor: '#EFF8FF' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 12,
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e8e8e8',
   },
-  title: { fontSize: 17, fontWeight: '700', color: '#111827' },
+  title:         { fontSize: 17, fontWeight: '700', color: '#111827' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  refreshBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8', justifyContent: 'center', alignItems: 'center' },
-  refreshBtnText: { fontSize: 18, color: '#0ea5e9', lineHeight: 22 },
-  addBtn: { backgroundColor: '#F97316', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  filterBar: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e8e8e8', maxHeight: 50 },
-  filterContent: { paddingHorizontal: 12, paddingVertical: 9, gap: 8, flexDirection: 'row' },
-  pill: {
-    paddingHorizontal: 14, paddingVertical: 5, borderRadius: 16,
+  refreshBtn: {
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8',
+    justifyContent: 'center', alignItems: 'center',
   },
-  pillActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
-  pillText: { fontSize: 12, fontWeight: '600', color: '#6b7280' },
+  refreshBtnText: { fontSize: 18, color: '#0ea5e9', lineHeight: 22 },
+  addBtn:         { backgroundColor: '#F97316', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
+  addBtnText:     { color: '#fff', fontWeight: '700', fontSize: 13 },
+  filterBar:    { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e8e8e8', maxHeight: 50 },
+  filterContent: { paddingHorizontal: 12, paddingVertical: 9, gap: 8, flexDirection: 'row' },
+  pill:          { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 16, backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8' },
+  pillActive:    { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
+  pillText:      { fontSize: 12, fontWeight: '600', color: '#6b7280' },
   pillTextActive: { color: '#fff' },
-  map: { flex: 1 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: '#6b7280', fontSize: 14 },
-  callout: { padding: 8, minWidth: 160, maxWidth: 220 },
-  calloutTitle: { fontSize: 13, fontWeight: '700', color: '#111827', marginBottom: 3 },
-  calloutTime: { fontSize: 11, color: '#6b7280', marginBottom: 3 },
-  calloutUtci: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  calloutEdit: { fontSize: 11, color: '#0ea5e9' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  map:          { flex: 1 },
+  center:       { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText:  { color: '#6b7280', fontSize: 14 },
+  overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22,
     padding: 24, gap: 10,
   },
-  sheetTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 },
-  fieldHint: { fontSize: 11, color: '#94a3b8', marginTop: 4, marginBottom: 2 },
+  sheetTitle:   { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  fieldLabel:   { fontSize: 11, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldHint:    { fontSize: 11, color: '#94a3b8', marginTop: 4, marginBottom: 2 },
   input: {
     backgroundColor: '#fafafa', borderRadius: 10, borderWidth: 1,
     borderColor: '#e8e8e8', padding: 12, fontSize: 14, color: '#111827',
   },
   inputMultiline: { minHeight: 72, paddingTop: 12 },
-  row: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  btn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
-  btnPrimary: { backgroundColor: '#0ea5e9' },
+  row:            { flexDirection: 'row', gap: 12, marginTop: 4 },
+  btn:            { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
+  btnPrimary:     { backgroundColor: '#0ea5e9' },
   btnPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  btnSecondary: { backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8' },
+  btnSecondary:   { backgroundColor: '#fafafa', borderWidth: 1, borderColor: '#e8e8e8' },
   btnSecondaryText: { color: '#6b7280', fontWeight: '600', fontSize: 15 },
   legend: {
     position: 'absolute', bottom: 24, left: 12,
@@ -504,7 +501,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   legendTitle: { fontSize: 9, fontWeight: '800', color: '#6b7280', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot:   { width: 10, height: 10, borderRadius: 5 },
   legendLabel: { fontSize: 11, color: '#111827', fontWeight: '500' },
 });
