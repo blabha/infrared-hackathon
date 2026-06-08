@@ -48,7 +48,7 @@ function buildLeafletHTML(
 ): string {
   const visible = events
     .map((ev, i) => ({ ev, i, coord: coords[i] }))
-    .filter(({ ev, i, coord }) => {
+    .filter(({ ev, coord }) => {
       if (!coord) return false;
       if (selectedDay === 'All') return true;
       try {
@@ -223,15 +223,6 @@ export default function MapScreen() {
     } catch {}
   };
 
-  const openEdit = (ev: EventItem, idx: number) => {
-    setTimeout(() => {
-      setEditTitle(ev.title ?? '');
-      setEditTime(ev.time ?? '');
-      setEditLocation(ev.location ?? '');
-      setEditNotes(ev.notes ?? '');
-      setSelected({ ev, idx });
-    }, 50);
-  };
 
   const saveEdit = async () => {
     if (!selected) return;
@@ -318,7 +309,7 @@ export default function MapScreen() {
         <View style={{ flex: 1 }}>
           <WebView
             ref={webRef}
-            source={{ html: leafletHTML }}
+            source={{ html: leafletHTML, baseUrl: 'https://unpkg.com' }}
             style={styles.map}
             onMessage={handleWebMessage}
             originWhitelist={['*']}
@@ -326,6 +317,9 @@ export default function MapScreen() {
             domStorageEnabled
             mixedContentMode="always"
             allowFileAccess
+            allowUniversalAccessFromFileURLs
+            allowFileAccessFromFileURLs
+            scalesPageToFit={false}
           />
 
           {/* UTCI legend */}
