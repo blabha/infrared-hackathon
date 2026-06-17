@@ -5,10 +5,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthCallbackScreen() {
-  const { user_id, email, name, error } = useLocalSearchParams<{
+  const { user_id, email, name, access_token, refresh_token, error } = useLocalSearchParams<{
     user_id?: string;
     email?: string;
     name?: string;
+    access_token?: string;
+    refresh_token?: string;
     error?: string;
   }>();
   const router = useRouter();
@@ -20,11 +22,14 @@ export default function AuthCallbackScreen() {
         router.replace('/login');
         return;
       }
-      await AsyncStorage.multiSet([
+      const pairs: [string, string][] = [
         ['user_id', user_id],
         ['email',   email ?? ''],
         ['name',    name  ?? ''],
-      ]);
+      ];
+      if (access_token) pairs.push(['access_token', access_token]);
+      if (refresh_token) pairs.push(['refresh_token', refresh_token]);
+      await AsyncStorage.multiSet(pairs);
       await loadSession();
       const onboarded = await AsyncStorage.getItem('onboarding_complete');
       router.replace(onboarded ? '/(tabs)' : '/onboarding');
