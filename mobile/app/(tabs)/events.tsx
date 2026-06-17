@@ -192,6 +192,9 @@ export default function EventsScreen() {
   const [lastPeriodStart, setLastPeriodStart] = useState<Date | null>(null);
   const [isWoman, setIsWoman] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [calPickerVisible, setCalPickerVisible] = useState(false);
+  const [availableCalendars, setAvailableCalendars] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [selectedCalIds, setSelectedCalIds] = useState<Set<string>>(new Set());
 
   const fmtDDMMYY = (d: Date) => {
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -296,7 +299,25 @@ export default function EventsScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [user_id]);
 
-  const syncCalendar = async () => {
+  const openCalendarPicker = async () => {
+    if (!user_id) return;
+    setSyncing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/calendars?user_id=${encodeURIComponent(user_id)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const cals = await res.json();
+      setAvailableCalendars(cals);
+      setSelectedCalIds(new Set(cals.map((c: any) => c.id)));
+      setCalPickerVisible(true);
+    } catch (e: any) {
+      Alert.alert('Could not load calendars', e?.message ?? 'Check your connection');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const doSync = async () => {
+    setCalPickerVisible(false);
     if (!user_id) return;
     setSyncing(true);
     try {
@@ -305,7 +326,11 @@ export default function EventsScreen() {
       const res = await fetch(`${API_BASE}/api/run?user_id=${encodeURIComponent(user_id)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
+        body: JSON.stringify({
+          access_token:  accessToken,
+          refresh_token: refreshToken,
+          calendar_ids:  selectedCalIds.size > 0 ? [...selectedCalIds] : null,
+        }),
       });
       if (!res.ok) {
         const txt = await res.text();
@@ -422,7 +447,7 @@ export default function EventsScreen() {
               <TouchableOpacity onPress={nextMonth} style={s.navBtn}>
                 <Text style={s.navArrow}>›</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={syncCalendar} style={s.syncBtn} disabled={syncing}>
+              <TouchableOpacity onPress={openCalendarPicker} style={s.syncBtn} disabled={syncing}>
                 {syncing
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Text style={s.syncBtnText}>Sync</Text>
@@ -570,6 +595,45 @@ export default function EventsScreen() {
         )}
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Calendar picker modal */}
+      <Modal visible={calPickerVisible} transparent animationType="slide" onRequestClose={() => setCalPickerVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.overlay}>
+          <View style={s.sheet}>
+            <View style={s.sheetHeader}>
+              <TouchableOpacity onPress={() => setCalPickerVisible(false)}>
+                <Text style={s.sheetCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={s.sheetTitle}>Choose Calendars</Text>
+              <TouchableOpacity onPress={doSync}>
+                <Text style={s.sheetDone}>Sync</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ paddingBottom: 16 }}>
+              {availableCalendars.map(cal => {
+                const selected = selectedCalIds.has(cal.id);
+                return (
+                  <TouchableOpacity
+                    key={cal.id}
+                    style={s.calRow}
+                    onPress={() => setSelectedCalIds(prev => {
+                      const next = new Set(prev);
+                      selected ? next.delete(cal.id) : next.add(cal.id);
+                      return next;
+                    })}
+                  >
+                    <View style={[s.calDot, { backgroundColor: cal.color }]} />
+                    <Text style={s.calName} numberOfLines={1}>{cal.name}</Text>
+                    <View style={[s.checkbox, selected && s.checkboxChecked]}>
+                      {selected && <Text style={s.checkmark}>✓</Text>}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal visible={showAdd} transparent animationType="slide" onRequestClose={() => setShowAdd(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.overlay}>
@@ -720,4 +784,11 @@ const s = StyleSheet.create({
   formLabel: { fontSize: 11, fontWeight: '600', color: '#9ca3af', letterSpacing: 0.5, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   formInput: { fontSize: 16, color: '#111827', paddingHorizontal: 16, paddingBottom: 14 },
   zipHint: { fontSize: 12, color: '#9ca3af', paddingHorizontal: 16, paddingBottom: 10 },
+
+  calRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },
+  calDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+  calName: { flex: 1, fontSize: 15, color: '#111827' },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#d1d5db', justifyContent: 'center', alignItems: 'center' },
+  checkboxChecked: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

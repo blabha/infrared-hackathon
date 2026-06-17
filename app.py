@@ -554,6 +554,22 @@ def _enrich_all_async(user_id: str = ""):
 class SyncRequest(BaseModel):
     access_token:  str | None = None
     refresh_token: str | None = None
+    calendar_ids:  list[str] | None = None
+
+
+@app.get("/api/calendars")
+def get_calendars(user_id: str = ""):
+    """Return the list of Google Calendars the user has access to."""
+    try:
+        from modules.calendar_client import list_calendars
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    try:
+        token_file = str(_user_token_file(user_id)) if user_id else None
+        return JSONResponse(list_calendars(token_file=token_file))
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Could not list calendars: {e}")
 
 
 @app.post("/api/run")
@@ -592,10 +608,10 @@ def run_pipeline(body: SyncRequest = SyncRequest(), user_id: str = ""):
                     ],
                 }
                 _user_token_file(user_id).write_text(json.dumps(token_data), encoding="utf-8")
-            events = get_weekly_events(creds=creds)
+            events = get_weekly_events(creds=creds, calendar_ids=body.calendar_ids)
         else:
             token_file = str(_user_token_file(user_id)) if user_id else None
-            events = get_weekly_events(token_file=token_file)
+            events = get_weekly_events(token_file=token_file, calendar_ids=body.calendar_ids)
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Google Calendar fetch failed: {type(e).__name__}: {e}")

@@ -94,8 +94,27 @@ def build_credentials(access_token: str, refresh_token: str, client_id: str, cli
     )
 
 
-def get_weekly_events(token_file: str | None = None, creds=None) -> list[dict]:
-    """Fetch events for the upcoming week from ALL calendars."""
+def list_calendars(token_file: str | None = None, creds=None) -> list[dict]:
+    """Return the user's calendar list with id, summary, and backgroundColor."""
+    if creds is None:
+        creds = _get_credentials(token_file=token_file)
+    if not creds.valid and creds.refresh_token:
+        creds.refresh(Request())
+    service = build("calendar", "v3", credentials=creds)
+    cal_list = service.calendarList().list().execute()
+    return [
+        {
+            "id":    cal["id"],
+            "name":  cal.get("summary", cal["id"]),
+            "color": cal.get("backgroundColor", "#0ea5e9"),
+        }
+        for cal in cal_list.get("items", [])
+        if cal.get("accessRole") in ("owner", "writer", "reader")
+    ]
+
+
+def get_weekly_events(token_file: str | None = None, creds=None, calendar_ids: list[str] | None = None) -> list[dict]:
+    """Fetch events for the upcoming week. Optionally filter to specific calendar IDs."""
     if creds is None:
         creds = _get_credentials(token_file=token_file)
     if not creds.valid and creds.refresh_token:
@@ -104,16 +123,18 @@ def get_weekly_events(token_file: str | None = None, creds=None) -> list[dict]:
 
     week_start, week_end = _upcoming_week()
 
-    # Collect all calendar IDs the user has access to
-    cal_list = service.calendarList().list().execute()
-    calendar_ids = [cal["id"] for cal in cal_list.get("items", [])]
-    if not calendar_ids:
-        calendar_ids = ["primary"]
+    if calendar_ids:
+        ids_to_fetch = calendar_ids
+    else:
+        cal_list = service.calendarList().list().execute()
+        ids_to_fetch = [cal["id"] for cal in cal_list.get("items", [])]
+    if not ids_to_fetch:
+        ids_to_fetch = ["primary"]
 
     seen_ids: set[str] = set()
     events: list[dict] = []
 
-    for cal_id in calendar_ids:
+    for cal_id in ids_to_fetch:
         try:
             result = service.events().list(
                 calendarId=cal_id,
