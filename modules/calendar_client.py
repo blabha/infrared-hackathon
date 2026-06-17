@@ -46,6 +46,13 @@ def _get_credentials(token_file: str | None = None):
     creds = None
     if os.path.exists(effective_token):
         creds = Credentials.from_authorized_user_file(effective_token, SCOPES)
+        # Backfill client_id / client_secret from env if the stored file has blanks
+        env_client_id     = os.getenv("GOOGLE_CLIENT_ID", "")
+        env_client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+        if env_client_id and not creds.client_id:
+            creds._client_id = env_client_id
+        if env_client_secret and not creds.client_secret:
+            creds._client_secret = env_client_secret
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -91,6 +98,8 @@ def get_weekly_events(token_file: str | None = None, creds=None) -> list[dict]:
     """Fetch events for the upcoming week from ALL calendars."""
     if creds is None:
         creds = _get_credentials(token_file=token_file)
+    if not creds.valid and creds.refresh_token:
+        creds.refresh(Request())
     service = build("calendar", "v3", credentials=creds)
 
     week_start, week_end = _upcoming_week()
