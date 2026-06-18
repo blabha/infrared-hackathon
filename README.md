@@ -6,11 +6,11 @@ A personal outdoor intelligence system that connects your Google Calendar events
 
 ## What it does
 
-You add an event to the calendar. The system geocodes its location, runs a UTCI (Universal Thermal Climate Index) simulation through the Infrared City API, pulls live weather data, and passes everything through Claude to generate:
+Add an event to your calendar. The system geocodes its location, runs a UTCI (Universal Thermal Climate Index) simulation through the Infrared City API, pulls live weather data, and passes everything through Claude to generate:
 
 - **Thermal comfort rating** for the event location and time window
-- **Clothing suggestions** tuned to solar load, wind and precipitation
-- **Wellness feedback** — and for women, cycle-phase-aware advice that accounts for how progesterone and oestrogen affect heat tolerance, fatigue and nutrition needs on that specific day
+- **Clothing suggestions** tuned to solar load, wind, and precipitation
+- **Wellness feedback** — and for women, cycle-phase-aware advice that accounts for how progesterone and oestrogen affect heat tolerance, fatigue, and nutrition needs on that specific day
 - **Food recommendations** tailored to both the cycle phase and the type of activity (outdoor run vs. office meeting vs. beach)
 
 ---
@@ -19,14 +19,14 @@ You add an event to the calendar. The system geocodes its location, runs a UTCI 
 
 ```
 Google Calendar (OAuth)   ──┐
-Infrared City SDK         ──┤  FastAPI backend  ──►  Claude API  ──►  weekly_plan.json
+Infrared City SDK         ──┤  FastAPI backend (Railway)  ──►  Claude API  ──►  weekly_plan.json
 Open-Meteo Weather API    ──┘
          │
          ▼
-   React Native app (Expo)
-   ├── Map tab       — UTCI heatmap overlays + coloured pins per event
-   ├── Calendar tab  — Day view, event cards with thermal + cycle tips
-   └── Health tab    — Period tracking, workout/weight logging, phase badge
+   React Native app (Expo / EAS)
+   ├── Map tab       — Leaflet heatmap overlays + UTCI-coloured pins per event
+   ├── Calendar tab  — Monthly grid, day view, event cards with thermal + cycle tips
+   └── Health tab    — Period tracking, workout/weight logging, cycle phase badge
 ```
 
 ---
@@ -35,11 +35,12 @@ Open-Meteo Weather API    ──┘
 
 | Layer | Tech |
 |---|---|
-| Mobile app | React Native (Expo Router) |
-| Backend API | FastAPI + Uvicorn |
+| Mobile app | React Native (Expo Router), EAS builds |
+| Backend API | FastAPI + Uvicorn, deployed on Railway |
 | Microclimate | Infrared City SDK (`infrared-sdk`) |
 | Weather | Open-Meteo (`openmeteo-requests`) |
-| Calendar | Google Calendar API v3 (OAuth 2.0) |
+| Calendar | Google Calendar API v3 (OAuth 2.0, backend-mediated) |
+| Map | React Native WebView + Leaflet.js |
 | AI suggestions | Anthropic Claude (`claude-sonnet-4-6`) |
 | Geocoding | Nominatim (OpenStreetMap) |
 
@@ -48,32 +49,34 @@ Open-Meteo Weather API    ──┘
 ## Mobile App — Screens
 
 ### Map
-- Interactive map (React Native Maps) centred on Barcelona
+- Interactive Leaflet map rendered in a WebView
 - UTCI colour-coded pins per event (blue → green → yellow → orange → red)
 - Semi-transparent heatmap overlay per event location
 - UTCI legend (bottom-left)
 - Day-of-week filter strip
 - **↺ Refresh** button to pull latest enriched data
 - **+ Add** button to create a new event
+- Tap a pin to open an edit popup
 
 ### Calendar
 - Monthly calendar grid with event dots coloured by UTCI
 - Tap a day to see its events
 - Expand an event card to reveal:
   - Solar radiation, wind speed, rain, humidity
-  - **👕 Clothing** — Claude's suggestion
-  - **💧 Wellness** — Claude's suggestion
-  - **🌸 Cycle & Thermal** — Phase-aware tip (female users only), adapts to activity type (outdoor run / indoor gym / meeting / beach) and whether UTCI is above 32°C
-  - **🥗 Consider Eating** — Nutrition recommendation for the phase and activity
+  - **Clothing** — Claude's suggestion
+  - **Wellness** — Claude's suggestion
+  - **Cycle & Thermal** — Phase-aware tip (female users only), adapts to activity type and whether UTCI is above 32°C
+  - **Consider Eating** — Nutrition recommendation for the phase and activity
   - **Delete event** button
-- Add new events with location autofill (Nominatim resolves short names like "EADA" to full addresses)
+- **Sync** button fetches your Google Calendars, shows a picker so you can choose which ones to import, then runs the full enrichment pipeline
+- Add new events with location autofill (Nominatim resolves short names to full addresses)
 
 ### Health
 - Gender, cycle day and phase badge (Menstrual / Follicular / Ovulatory / Luteal)
-- Log workout (type, duration, time of day)
+- Log workout (type, duration)
 - Log weight (kg or lbs)
 - Period tracking — log start and end dates
-- **Thermal Wellness card** — updates live as you type a period end date, shows how your current cycle phase affects outdoor heat tolerance
+- **Thermal Wellness card** — shows how your current cycle phase affects outdoor heat tolerance
 
 ---
 
@@ -81,36 +84,63 @@ Open-Meteo Weather API    ──┘
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/events` | Return enriched event list |
+| `GET` | `/api/events` | Return enriched event list (scoped by `user_id`) |
 | `POST` | `/api/events` | Add a new event (auto-enriches if outdoor) |
-| `PUT` | `/api/events/{idx}` | Edit event title/time |
+| `PUT` | `/api/events/{idx}` | Edit event title / time / location |
 | `DELETE` | `/api/events/{idx}` | Delete event |
 | `POST` | `/api/enrich` | Enrich specific event indices with UTCI |
 | `POST` | `/api/enrich-pending` | Enrich all events with location but no UTCI |
 | `POST` | `/api/run` | Full pipeline: Calendar → Infrared → Weather → Claude |
+| `GET` | `/api/calendars` | List the user's Google Calendars (id, name, colour) |
 | `GET` | `/api/geocode?address=` | Geocode an address (returns lat, lng, display_name) |
+| `GET` | `/api/auth/google/start` | Kick off backend-mediated Google OAuth |
+| `GET` | `/api/auth/google/callback` | OAuth callback — exchanges code, redirects back to app |
 | `GET` | `/api/health-profile` | Get user health/cycle profile |
 | `POST` | `/api/health-profile` | Update health profile |
 | `POST` | `/api/health/log-period` | Log period start or end |
 | `GET` | `/api/health/logs` | All health logs |
 
+### `/api/run` body
+
+```json
+{
+  "access_token":  "ya29...",
+  "refresh_token": "1//...",
+  "calendar_ids":  ["primary", "work@group.calendar.google.com"]
+}
+```
+
+All fields are optional. `calendar_ids` defaults to all calendars if omitted.
+
+---
+
+## Auth Flow
+
+The app uses a backend-mediated OAuth flow so Google credentials never need to be bundled in the app:
+
+1. App calls `WebBrowser.openAuthSessionAsync` → opens Railway `/api/auth/google/start`
+2. Railway redirects to Google with `redirect_uri` set to the Railway callback URL
+3. User authenticates with Google in the in-app browser
+4. Google redirects to Railway `/api/auth/google/callback`
+5. Railway exchanges the code for tokens, stores them per user, then redirects back to `climateplanner://auth-callback?user_id=...&access_token=...&refresh_token=...`
+6. `openAuthSessionAsync` intercepts the deep link — the app stores the tokens in `AsyncStorage`
+
 ---
 
 ## Cycle & Thermal Intelligence
 
-The system maps the user's menstrual cycle to thermal comfort implications using the number of days since their last period end, modulo 28. For each calendar event, it calculates what phase the user will be in **on the day of that event** — not just today.
+The system maps the user's menstrual cycle to thermal comfort implications using days since their last period start, modulo 28. For each calendar event it calculates the phase the user will be in **on the day of that event**.
 
-| Phase | Days since period end | Thermal implication |
+| Phase | Days | Thermal implication |
 |---|---|---|
-| Transitional | 0–1 | Temp stabilising, ease into outdoor activity |
-| Follicular | 1–7 | Peak heat tolerance — best window for outdoor plans |
-| Pre-ovulation | 7–11 | High oestrogen, mild temp uptick — hydrate well |
-| Ovulation | 11–14 | Basal temp slightly elevated — prefer cooler times |
-| Luteal | 14–21 | Progesterone raises core temp 0.3–0.5 degrees — reduced heat tolerance |
-| Late luteal (PMS) | 21–28 | Most heat-sensitive — shade, extra hydration, avoid peak hours |
+| Menstrual | 1–5 | Low energy, ease into outdoor activity |
+| Follicular | 6–13 | Peak heat tolerance — best window for outdoor plans |
+| Ovulatory | 14–15 | Basal temp slightly elevated — prefer cooler times of day |
+| Luteal | 16–21 | Progesterone raises core temp — reduced heat tolerance |
+| Late luteal | 22–28 | Most heat-sensitive — shade, extra hydration, avoid peak hours |
 
-The tip also adapts to:
-- **Activity type** — outdoor run, indoor gym, work/meeting, outdoor leisure — detected from the event title
+Tips also adapt to:
+- **Activity type** — outdoor run, indoor gym, work/meeting, outdoor leisure — detected from event title
 - **UTCI threshold** — if UTCI ≥ 32°C, language escalates to a stronger warning
 
 ---
@@ -130,7 +160,7 @@ The tip also adapts to:
 
 ## Setup
 
-### Backend
+### Backend (local dev)
 
 ```bash
 cd "infrared hackathon"
@@ -140,43 +170,68 @@ pip install -r requirements.txt
 ```
 
 Create a `.env` file:
-```
+
+```env
 ANTHROPIC_API_KEY=...
 INFRARED_API_KEY=...
-INFRARED_BASE_URL=...           # if using a non-default endpoint
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=...
-```
-
-Run OAuth to connect Google Calendar (required once):
-```bash
-.venv\Scripts\python -c "from modules.calendar_client import _get_credentials; _get_credentials()"
+GOOGLE_CALLBACK_URL=http://localhost:8000/api/auth/google/callback
 ```
 
 Start the server:
+
 ```bash
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Mobile App
+### Backend (Railway)
+
+Set these environment variables in your Railway service:
+
+| Variable | Value |
+|---|---|
+| `GOOGLE_CLIENT_ID` | Your OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Your OAuth client secret |
+| `GOOGLE_CALLBACK_URL` | `https://<your-railway-domain>/api/auth/google/callback` |
+| `ANTHROPIC_API_KEY` | Your Anthropic key |
+| `INFRARED_API_KEY` | Your Infrared City key |
+
+Add `https://<your-railway-domain>/api/auth/google/callback` to **Authorized redirect URIs** in Google Cloud Console.
+
+Railway deploys automatically on every push to `main`.
+
+### Mobile App (Expo Go — local dev)
 
 ```bash
-cd ClimateApp
+cd mobile
 npm install
 npx expo start
 ```
 
-Update `constants/api.ts` with your server's LAN IP:
-```ts
-export const API_BASE = 'http://192.168.x.x:8000';
+Create `mobile/.env.local`:
+
+```env
+EXPO_PUBLIC_API_BASE=https://<your-railway-domain>
 ```
+
+Scan the QR code with Expo Go on your phone. Authentication always goes through the Railway backend even in local dev — Google requires HTTPS redirect URIs.
+
+### Mobile App (EAS build — installable APK)
+
+```bash
+cd mobile
+eas build --platform android --profile preview
+```
+
+The `preview` profile in `eas.json` sets `EXPO_PUBLIC_API_BASE` to the Railway URL automatically and produces an installable `.apk` you can sideload or share via Expo's dashboard.
 
 ---
 
 ## Notes
 
-- Infrared simulations run in a background thread after event creation. Indoor/work events (EADA, meeting, office, class, etc.) skip the Infrared API automatically.
-- Newly created events appear on the map immediately via geocode fallback (grey `?` pin), then gain a coloured UTCI pin once enrichment completes.
-- New events are written back to Google Calendar with a 1-hour default duration.
-- The plan file (`output/weekly_plan.json`) is the source of truth for the mobile app. It is overwritten when the full pipeline (`/api/run`) runs.
+- Infrared simulations run in a background thread after event creation. Indoor/work events (meeting, office, class, EADA, gym, etc.) skip the Infrared API automatically.
+- Newly created events appear on the map immediately with a grey `?` pin, then gain a UTCI-coloured pin once enrichment completes (~60 seconds).
+- New events are written back to the user's primary Google Calendar with a 1-hour default duration.
+- All data is scoped per user via a `user_id` query parameter derived from an MD5 hash of the user's Google email.
+- The plan file (`output/users/<user_id>/weekly_plan.json`) is the source of truth for the mobile app. It is overwritten each time the full pipeline (`/api/run`) runs.
