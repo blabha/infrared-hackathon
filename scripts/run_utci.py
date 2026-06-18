@@ -1,9 +1,11 @@
 """Run UTCI-only simulation for two Barcelona event locations and print results."""
-import os, json, numpy as np
+import sys, os, json, numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent / ".env")
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
+load_dotenv(ROOT / ".env")
 
 from infrared_sdk import InfraredClient
 from infrared_sdk.analyses.types import UtciModelRequest, UtciModelBaseRequest, AnalysesName

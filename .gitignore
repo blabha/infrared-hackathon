@@ -26,4 +26,4 @@ data/
 # Misc
 .DS_Store
 Thumbs.db
-diagrams/convert.py
+docs/diagrams/convert.py

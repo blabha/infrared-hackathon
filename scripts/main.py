@@ -1,5 +1,6 @@
-import json
+import sys, json
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modules.calendar_client import get_weekly_events
 from modules.infrared_client import get_climate_for_events
